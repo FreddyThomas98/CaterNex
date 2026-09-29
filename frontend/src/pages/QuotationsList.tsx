@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Quotation, UserRole } from '../types';
 import { api } from '../services/api';
 import { QuotationReviewModal } from '../components/QuotationReviewModal';
-import { Search, Plus, Download, Eye, Trash2 } from 'lucide-react';
+import { Search, Plus, Download, Eye, Trash2, Edit3 } from 'lucide-react';
 
 interface QuotationsListProps {
   userRole: UserRole;
@@ -228,6 +228,16 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
                         <Eye size={13} />
                       </button>
 
+                      <button
+                        onClick={() => onNavigate('new-quotation', { quotationId: q.id })}
+                        className="btn btn-outline btn-sm"
+                        style={{ color: 'var(--brand-emerald)', borderColor: 'var(--brand-gold-border)' }}
+                        title="Edit Proposal"
+                      >
+                        <Edit3 size={13} color="var(--brand-gold)" />
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Edit</span>
+                      </button>
+
                       <a
                         href={`/api/quotations/${q.id}/pdf`}
                         target="_blank"
@@ -294,6 +304,10 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
           discountValue={selectedQuotation.discount_value || 0}
           taxPercentage={selectedQuotation.tax_percentage || 5.0}
           onDownloadPdf={() => window.open(`/api/quotations/${selectedQuotation.id}/pdf`, '_blank')}
+          onEdit={() => {
+            setIsReviewOpen(false);
+            onNavigate('new-quotation', { quotationId: selectedQuotation.id });
+          }}
         />
       )}
     </div>

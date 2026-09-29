@@ -1,6 +1,6 @@
 import React from 'react';
 import { MenuItem, Addon, Client, CateringEvent, CompanySettings } from '../types';
-import { X, Download, Printer, CheckCircle } from 'lucide-react';
+import { X, Download, Printer, CheckCircle, Edit3 } from 'lucide-react';
 
 interface QuotationReviewModalProps {
   isOpen: boolean;
@@ -16,6 +16,7 @@ interface QuotationReviewModalProps {
   taxPercentage: number;
   settings?: CompanySettings | null;
   onDownloadPdf: () => void;
+  onEdit?: () => void;
 }
 
 export const QuotationReviewModal: React.FC<QuotationReviewModalProps> = ({
@@ -31,7 +32,8 @@ export const QuotationReviewModal: React.FC<QuotationReviewModalProps> = ({
   discountValue,
   taxPercentage,
   settings,
-  onDownloadPdf
+  onDownloadPdf,
+  onEdit
 }) => {
   if (!isOpen) return null;
 
@@ -128,6 +130,17 @@ export const QuotationReviewModal: React.FC<QuotationReviewModalProps> = ({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {onEdit && (
+              <button
+                onClick={onEdit}
+                className="btn btn-outline btn-sm"
+                style={{ color: 'var(--brand-emerald)', borderColor: 'var(--brand-gold-border)' }}
+                title="Edit this Proposal"
+              >
+                <Edit3 size={15} color="var(--brand-gold)" />
+                Edit Proposal
+              </button>
+            )}
             <button
               onClick={() => window.print()}
               className="btn btn-outline btn-sm"

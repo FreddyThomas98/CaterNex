@@ -132,6 +132,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload)
     }),
+  updateQuotation: (id: number, payload: any) =>
+    request<{ id: number; quotation_number: string; grand_total: number }>(`/quotations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }),
   updateQuotationStatus: (id: number, status: string) =>
     request<{ success: boolean; status: string }>(`/quotations/${id}/status`, {
       method: 'PUT',

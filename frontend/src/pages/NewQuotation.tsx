@@ -11,10 +11,12 @@ import {
 
 interface NewQuotationProps {
   userRole: UserRole;
+  editQuotationId?: number | null;
   onQuotationSaved?: (quotationId: number) => void;
+  onResetEdit?: () => void;
 }
 
-export const NewQuotation: React.FC<NewQuotationProps> = ({ userRole, onQuotationSaved }) => {
+export const NewQuotation: React.FC<NewQuotationProps> = ({ userRole, editQuotationId, onQuotationSaved, onResetEdit }) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -37,6 +39,7 @@ export const NewQuotation: React.FC<NewQuotationProps> = ({ userRole, onQuotatio
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editingQuotationId, setEditingQuotationId] = useState<number | null>(editQuotationId || null);
   const [createdQuotationId, setCreatedQuotationId] = useState<number | null>(null);
   const [createdQuotationNumber, setCreatedQuotationNumber] = useState<string>('QT-2026-000001');
 
@@ -72,18 +75,75 @@ export const NewQuotation: React.FC<NewQuotationProps> = ({ userRole, onQuotatio
         setSettings(sett);
 
         // DO NOT auto-select anything - start completely clean and optional
-        setSelectedClientId(null);
-        setSelectedItems({});
-        setProposalEventType('');
-        setCustomEventType('');
-        setProposalEventDate('');
-        setProposalEventVenue('');
+        if (!editQuotationId) {
+          setSelectedClientId(null);
+          setSelectedItems({});
+          setProposalEventType('');
+          setCustomEventType('');
+          setProposalEventDate('');
+          setProposalEventVenue('');
+        }
       } catch (err) {
         console.error('Error fetching data', err);
       }
     };
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (editQuotationId) {
+      setEditingQuotationId(editQuotationId);
+    } else {
+      setEditingQuotationId(null);
+    }
+  }, [editQuotationId]);
+
+  useEffect(() => {
+    if (!editingQuotationId || menuItems.length === 0) return;
+    const loadEditingQuotation = async () => {
+      try {
+        const q = await api.getQuotation(editingQuotationId);
+        setCreatedQuotationId(q.id);
+        setCreatedQuotationNumber(q.quotation_number);
+        setGuestCount(q.guest_count || 100);
+        setSelectedClientId(q.client_id || null);
+        setProposalEventType(q.event?.event_type || q.event_type || '');
+        setProposalEventDate(q.event?.event_date || q.event_date || '');
+        setProposalEventVenue(q.event?.venue || q.venue || '');
+        setDiscountType(q.discount_type || 'PERCENTAGE');
+        setDiscountValue(q.discount_value || 0);
+        setTaxPercentage(q.tax_percentage !== undefined ? q.tax_percentage : 5.0);
+
+        // Map items
+        const itemMap: { [id: number]: { item: MenuItem; quantity: number } } = {};
+        if (q.items && q.items.length > 0) {
+          q.items.forEach(qi => {
+            const found = menuItems.find(m => m.id === qi.menu_item_id || m.name.toLowerCase() === qi.item_name_snapshot.toLowerCase());
+            const menuItem: MenuItem = found || {
+              id: qi.menu_item_id || Math.floor(Math.random() * 100000),
+              name: qi.item_name_snapshot,
+              category_name: qi.category_snapshot || 'Special Dishes',
+              service_type: (qi.service_type_snapshot as any) || 'STANDARD',
+              pricing_unit: (qi.pricing_unit_snapshot as any) || 'PER_PERSON',
+              selling_price: qi.selling_price_snapshot,
+              is_demo_price: 0,
+              is_seasonal: 0,
+              is_active: 1,
+              display_order: 0
+            };
+            itemMap[menuItem.id] = {
+              item: menuItem,
+              quantity: qi.quantity || 1
+            };
+          });
+        }
+        setSelectedItems(itemMap);
+      } catch (err) {
+        console.error('Failed to load quotation for editing', err);
+      }
+    };
+    loadEditingQuotation();
+  }, [editingQuotationId, menuItems]);
 
   const handleStartFromScratch = () => {
     setSelectedClientId(null);
@@ -95,6 +155,8 @@ export const NewQuotation: React.FC<NewQuotationProps> = ({ userRole, onQuotatio
     setGuestCount(100);
     setDiscountValue(0);
     setCreatedQuotationId(null);
+    setEditingQuotationId(null);
+    if (onResetEdit) onResetEdit();
   };
 
   const activeClient = clients.find(c => c.id === selectedClientId) || null;
@@ -210,11 +272,19 @@ export const NewQuotation: React.FC<NewQuotationProps> = ({ userRole, onQuotatio
     };
 
     try {
-      const res = await api.createQuotation(payload);
-      setCreatedQuotationId(res.id);
-      setCreatedQuotationNumber(res.quotation_number);
-      if (onQuotationSaved) onQuotationSaved(res.id);
-      alert(`Quotation ${res.quotation_number} saved successfully!`);
+      if (editingQuotationId) {
+        const res = await api.updateQuotation(editingQuotationId, payload);
+        setCreatedQuotationId(res.id);
+        setCreatedQuotationNumber(res.quotation_number);
+        if (onQuotationSaved) onQuotationSaved(res.id);
+        alert(`Proposal ${res.quotation_number} updated successfully!`);
+      } else {
+        const res = await api.createQuotation(payload);
+        setCreatedQuotationId(res.id);
+        setCreatedQuotationNumber(res.quotation_number);
+        if (onQuotationSaved) onQuotationSaved(res.id);
+        alert(`Quotation ${res.quotation_number} saved successfully!`);
+      }
     } catch (err: any) {
       alert(`Error saving quotation: ${err.message}`);
     } finally {
@@ -289,6 +359,41 @@ export const NewQuotation: React.FC<NewQuotationProps> = ({ userRole, onQuotatio
 
   return (
     <div className="page-wrapper" style={{ maxWidth: '1360px', padding: '1.5rem 2rem 3rem' }}>
+      {/* Editing Mode Banner */}
+      {editingQuotationId && (
+        <div style={{
+          backgroundColor: '#ECFDF5',
+          border: '1.5px solid #A7F3D0',
+          borderRadius: 'var(--radius-md)',
+          padding: '0.85rem 1.25rem',
+          marginBottom: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span className="badge badge-emerald">Editing Mode</span>
+            <span style={{ fontWeight: 700, color: 'var(--brand-emerald)', fontSize: '0.9rem' }}>
+              Editing Proposal #{createdQuotationNumber}
+            </span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              (Modify guest count, dishes, or event details, then click "Update Proposal")
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleStartFromScratch}
+            className="btn btn-outline btn-sm"
+            style={{ fontSize: '0.75rem' }}
+          >
+            Create New From Scratch
+          </button>
+        </div>
+      )}
+
       {/* Top Banner: Optional Event Setup & Client Selector + Guest Scale */}
       <div style={{
         backgroundColor: '#FFFFFF',
@@ -830,7 +935,7 @@ export const NewQuotation: React.FC<NewQuotationProps> = ({ userRole, onQuotatio
               style={{ width: '100%', padding: '0.65rem' }}
             >
               <Check size={15} />
-              {isSaving ? 'Saving...' : 'Save Quotation'}
+              {isSaving ? (editingQuotationId ? 'Updating...' : 'Saving...') : (editingQuotationId ? 'Update Proposal' : 'Save Quotation')}
             </button>
           </div>
         </div>

@@ -26,7 +26,13 @@ export function App() {
   });
 
   const [currentView, setCurrentView] = useState<string>('new-quotation');
+  const [viewParams, setViewParams] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const handleNavigate = (view: string, params?: any) => {
+    setViewParams(params || null);
+    setCurrentView(view);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('bandco_token');
@@ -41,7 +47,7 @@ export function App() {
           const adminUser: User = { ...user, role: 'ADMIN', max_discount_pct: 100.0 };
           setCurrentUser(adminUser);
           localStorage.setItem('bandco_user', JSON.stringify(adminUser));
-          setCurrentView('new-quotation');
+          handleNavigate('new-quotation');
         }}
       />
     );
@@ -51,7 +57,7 @@ export function App() {
     <div className="app-container">
       <Sidebar
         currentView={currentView}
-        onNavigate={(view) => setCurrentView(view)}
+        onNavigate={(view) => handleNavigate(view)}
         userRole="ADMIN"
         isOpen={sidebarOpen}
       />
@@ -67,28 +73,30 @@ export function App() {
           {currentView === 'new-quotation' && (
             <NewQuotation
               userRole="ADMIN"
-              onQuotationSaved={() => setCurrentView('quotations')}
+              editQuotationId={viewParams?.quotationId || null}
+              onQuotationSaved={() => handleNavigate('quotations')}
+              onResetEdit={() => setViewParams(null)}
             />
           )}
 
           {currentView === 'quotations' && (
             <QuotationsList
               userRole="ADMIN"
-              onNavigate={(view) => setCurrentView(view)}
+              onNavigate={handleNavigate}
             />
           )}
 
           {currentView === 'events' && (
             <EventManagement
               userRole="ADMIN"
-              onNavigate={(view) => setCurrentView(view)}
+              onNavigate={handleNavigate}
             />
           )}
 
           {currentView === 'clients' && (
             <ClientManagement
               userRole="ADMIN"
-              onNavigate={(view) => setCurrentView(view)}
+              onNavigate={handleNavigate}
             />
           )}
 

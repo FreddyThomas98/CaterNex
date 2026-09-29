@@ -740,6 +740,129 @@ def create_quotation(
     db.commit()
     return {"id": q_id, "quotation_number": quotation_number, "grand_total": grand_total}
 
+@app.put("/api/quotations/{id}")
+def update_quotation(
+    id: int,
+    payload: QuotationCreate,
+    role: str = Depends(require_roles(["ADMIN", "MANAGER", "SALESPERSON"])),
+    db: sqlite3.Connection = Depends(get_db)
+):
+    existing = db.execute("SELECT * FROM quotations WHERE id = ?", (id,)).fetchone()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+
+    # Calculate item line totals based on guest count and pricing unit
+    subtotal = 0.0
+    processed_items = []
+    for item in payload.items:
+        if item.pricing_unit in ["PER_PERSON", "PER_PLATE"]:
+            line_tot = item.selling_price * payload.guest_count
+        else:
+            line_tot = item.selling_price * item.quantity
+        subtotal += line_tot
+        processed_items.append((item, line_tot))
+
+    # Addons line totals
+    processed_addons = []
+    for addon in payload.addons:
+        line_tot = addon.selling_price * addon.quantity
+        subtotal += line_tot
+        processed_addons.append((addon, line_tot))
+
+    # Calculate discount
+    discount_amount = 0.0
+    if payload.discount_type == "PERCENTAGE":
+        discount_amount = round((subtotal * (payload.discount_value or 0)) / 100.0, 2)
+    else:
+        discount_amount = round(payload.discount_value or 0, 2)
+
+    after_discount = max(0.0, subtotal - discount_amount)
+    tax_pct = payload.tax_percentage if payload.tax_percentage is not None else 5.0
+    tax_amount = round((after_discount * tax_pct) / 100.0, 2)
+    grand_total = after_discount + tax_amount
+
+    # Update or preserve client_id
+    client_id = payload.client_id or existing["client_id"]
+    if payload.client_id and (payload.client_name or payload.client_phone or payload.client_address):
+        db.execute(
+            "UPDATE clients SET name = COALESCE(?, name), phone = COALESCE(?, phone), address = COALESCE(?, address) WHERE id = ?",
+            (payload.client_name, payload.client_phone, payload.client_address, payload.client_id)
+        )
+
+    # Update or preserve event_id
+    event_id = payload.event_id or existing["event_id"]
+    if event_id:
+        db.execute(
+            "UPDATE events SET event_type = COALESCE(?, event_type), event_date = COALESCE(?, event_date), venue = COALESCE(?, venue), guest_count = ? WHERE id = ?",
+            (payload.event_type, payload.event_date, payload.venue, payload.guest_count, event_id)
+        )
+    elif payload.event_type or payload.venue or payload.event_date:
+        ev_cur = db.execute('''
+            INSERT INTO events (client_id, event_type, event_date, venue, venue_address, guest_count, status, special_notes)
+            VALUES (?, ?, ?, ?, ?, ?, 'PLANNING', 'Created with quotation update')
+        ''', (
+            client_id,
+            payload.event_type or "Wedding Event",
+            payload.event_date or "2026-12-28",
+            payload.venue or "Banquet Venue",
+            payload.venue_address or "Kerala",
+            payload.guest_count
+        ))
+        event_id = ev_cur.lastrowid
+
+    # Update quotation header
+    db.execute('''
+        UPDATE quotations SET
+            client_id = ?, event_id = ?, guest_count = ?, subtotal = ?,
+            discount_type = ?, discount_value = ?, discount_amount = ?,
+            tax_percentage = ?, tax_amount = ?, grand_total = ?,
+            special_notes = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (
+        client_id, event_id, payload.guest_count, subtotal,
+        payload.discount_type, payload.discount_value, discount_amount,
+        tax_pct, tax_amount, grand_total, payload.special_notes, id
+    ))
+
+    # Replace quotation items
+    db.execute("DELETE FROM quotation_items WHERE quotation_id = ?", (id,))
+    for it, l_tot in processed_items:
+        valid_item_id = it.menu_item_id
+        if valid_item_id:
+            exists = db.execute("SELECT id FROM menu_items WHERE id = ?", (valid_item_id,)).fetchone()
+            if not exists:
+                valid_item_id = None
+        db.execute('''
+            INSERT INTO quotation_items (
+                quotation_id, menu_item_id, item_name_snapshot, category_snapshot,
+                service_type_snapshot, pricing_unit_snapshot, selling_price_snapshot,
+                quantity, line_total
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            id, valid_item_id, it.item_name, it.category, it.service_type,
+            it.pricing_unit, it.selling_price, it.quantity if it.pricing_unit != "PER_PERSON" else 1, l_tot
+        ))
+
+    # Replace quotation addons
+    db.execute("DELETE FROM quotation_addons WHERE quotation_id = ?", (id,))
+    for ad, l_tot in processed_addons:
+        valid_addon_id = ad.addon_id
+        if valid_addon_id:
+            exists = db.execute("SELECT id FROM addons WHERE id = ?", (valid_addon_id,)).fetchone()
+            if not exists:
+                valid_addon_id = None
+        db.execute('''
+            INSERT INTO quotation_addons (
+                quotation_id, addon_id, name_snapshot, pricing_unit_snapshot,
+                selling_price_snapshot, quantity, line_total
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            id, valid_addon_id, ad.name, ad.pricing_unit, ad.selling_price, ad.quantity, l_tot
+        ))
+
+    db.commit()
+    return {"id": id, "quotation_number": existing["quotation_number"], "grand_total": grand_total}
+
 @app.put("/api/quotations/{id}/status")
 def update_quotation_status(
     id: int,
