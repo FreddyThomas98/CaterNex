@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CateringEvent, Client, UserRole } from '../types';
 import { api } from '../services/api';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, MapPin, Users, Clock, CheckCircle2, Sparkles, Filter } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, MapPin, Users, Clock, CheckCircle2, Sparkles, Filter, Trash2 } from 'lucide-react';
 
 interface EventManagementProps {
   userRole: UserRole;
@@ -13,19 +13,22 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Calendar Month State (Defaults to December 2026 for wedding season demo, or current)
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 11, 1)); // Dec 2026
-  const [selectedDateStr, setSelectedDateStr] = useState<string | null>('2026-12-28');
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  // Calendar Month State (Defaults to Current Month / Today)
+  const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selectedDateStr, setSelectedDateStr] = useState<string | null>(todayStr);
 
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEvent, setNewEvent] = useState<Partial<CateringEvent>>({
     event_type: 'Wedding',
-    event_date: '2026-12-28',
+    event_date: todayStr,
     event_time: '18:00',
-    venue: 'CONTOUR Backwaters Convention Centre',
-    venue_address: 'Changanasery, Kerala',
-    guest_count: 700,
+    venue: '',
+    venue_address: '',
+    guest_count: 500,
     status: 'CONFIRMED'
   });
 
@@ -59,12 +62,22 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
     try {
       await api.createEvent({
         ...newEvent,
-        status: 'CONFIRMED' // Guaranteed confirmed order
+        status: 'CONFIRMED'
       });
       setIsModalOpen(false);
       loadData();
     } catch (err: any) {
       alert(`Error scheduling event: ${err.message}`);
+    }
+  };
+
+  const handleDeleteEvent = async (id: number) => {
+    if (!window.confirm('Are you sure you want to remove this confirmed booking from the calendar?')) return;
+    try {
+      await api.deleteEvent(id);
+      loadData();
+    } catch (err: any) {
+      alert(`Error removing booking: ${err.message}`);
     }
   };
 
@@ -89,8 +102,10 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
   };
 
   const goToToday = () => {
-    setCurrentDate(new Date(2026, 11, 1));
-    setSelectedDateStr('2026-12-28');
+    const now = new Date();
+    setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    const nowStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    setSelectedDateStr(nowStr);
   };
 
   // Map events to date strings "YYYY-MM-DD"
@@ -177,7 +192,7 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
                 className="btn btn-outline btn-sm"
                 style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
               >
-                Dec '26 Season
+                Today
               </button>
             </div>
 
@@ -408,6 +423,15 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
                   )}
 
                   <div style={{ marginTop: '0.85rem', paddingTop: '0.65rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => handleDeleteEvent(ev.id)}
+                      className="btn btn-outline btn-sm"
+                      style={{ fontSize: '0.75rem', color: '#B91C1C', borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}
+                      title="Remove from Calendar"
+                    >
+                      <Trash2 size={12} />
+                      Remove Booking
+                    </button>
                     <button
                       onClick={() => onNavigate('new-quotation', { clientId: ev.client_id, eventId: ev.id })}
                       className="btn btn-outline btn-sm"

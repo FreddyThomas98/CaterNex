@@ -115,6 +115,8 @@ export const api = {
     request<CateringEvent>('/events', { method: 'POST', body: JSON.stringify(ev) }),
   updateEvent: (id: number, ev: Partial<CateringEvent>) =>
     request<CateringEvent>(`/events/${id}`, { method: 'PUT', body: JSON.stringify(ev) }),
+  deleteEvent: (id: number) =>
+    request<{ success: boolean }>(`/events/${id}`, { method: 'DELETE' }),
 
   // Quotations
   getQuotations: (params?: { status?: string; client_id?: number; search?: string }) => {

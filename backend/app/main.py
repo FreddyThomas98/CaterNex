@@ -529,6 +529,15 @@ def update_event(id: int, event: EventCreate, db: sqlite3.Connection = Depends(g
     db.commit()
     return {"id": id, **event.dict()}
 
+@app.delete("/api/events/{id}")
+def delete_event(id: int, role: str = Depends(require_roles(["ADMIN", "MANAGER"])), db: sqlite3.Connection = Depends(get_db)):
+    # Unlink quotations pointing to this event
+    db.execute("UPDATE quotations SET event_id = NULL WHERE event_id = ?", (id,))
+    # Delete the event
+    db.execute("DELETE FROM events WHERE id = ?", (id,))
+    db.commit()
+    return {"success": True, "message": "Event removed from calendar"}
+
 # ==================== QUOTATION ENGINE ====================
 
 def generate_quotation_number(db: sqlite3.Connection) -> str:
@@ -814,7 +823,21 @@ def duplicate_quotation(id: int, db: sqlite3.Connection = Depends(get_db)):
 
 @app.delete("/api/quotations/{id}")
 def delete_quotation(id: int, role: str = Depends(require_roles(["ADMIN", "MANAGER"])), db: sqlite3.Connection = Depends(get_db)):
+    q = db.execute("SELECT event_id FROM quotations WHERE id = ?", (id,)).fetchone()
+    event_id = q["event_id"] if q else None
+
+    # Delete quotation items, addons, and the quotation record
+    db.execute("DELETE FROM quotation_items WHERE quotation_id = ?", (id,))
+    db.execute("DELETE FROM quotation_addons WHERE quotation_id = ?", (id,))
     db.execute("DELETE FROM quotations WHERE id = ?", (id,))
+
+    # If this quotation was linked to an event, check if any other quotation references it
+    if event_id:
+        other_q = db.execute("SELECT id FROM quotations WHERE event_id = ?", (event_id,)).fetchone()
+        if not other_q:
+            # Delete orphaned event so it does not remain on the calendar
+            db.execute("DELETE FROM events WHERE id = ?", (event_id,))
+
     db.commit()
     return {"success": True}
 
