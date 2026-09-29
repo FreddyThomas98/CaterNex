@@ -1,0 +1,23 @@
+# Node dependencies
+node_modules/
+frontend/node_modules/
+
+# Production builds
+frontend/dist/
+
+# Python cache & temp
+__pycache__/
+backend/app/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary test outputs
+test_*.pdf
+verify_*.pdf
+verify_*.png
+test_*.png
+scratch/
+.env
+.DS_Store
+Thumbs.db
