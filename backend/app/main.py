@@ -398,6 +398,7 @@ def update_menu_item(id: int, item: MenuItemCreate, role: str = Depends(require_
 
 @app.delete("/api/menu-items/{id}")
 def delete_menu_item(id: int, role: str = Depends(require_roles(["ADMIN"])), db: sqlite3.Connection = Depends(get_db)):
+    db.execute("DELETE FROM price_history WHERE menu_item_id = ?", (id,))
     db.execute("DELETE FROM menu_items WHERE id = ?", (id,))
     db.commit()
     return {"success": True, "message": "Item deleted"}

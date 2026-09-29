@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MenuItem, Category, UserRole, PricingUnit, ServiceType } from '../types';
 import { api } from '../services/api';
-import { Search, Plus, Edit3, Check, X, Flame, Sparkles } from 'lucide-react';
+import { Search, Plus, Edit3, Check, X, Flame, Sparkles, Trash2 } from 'lucide-react';
 
 interface MenuManagementProps {
   userRole: UserRole;
@@ -171,6 +171,23 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
     }
   };
 
+  const handleDeleteItem = async (item: MenuItem) => {
+    if (!window.confirm(`Are you sure you want to remove "${item.name}" from the menu?`)) {
+      return;
+    }
+    try {
+      await api.deleteMenuItem(item.id);
+      if (isEditModalOpen) {
+        setIsEditModalOpen(false);
+        setEditingItem(null);
+      }
+      await loadData();
+      alert(`"${item.name}" removed from the menu.`);
+    } catch (err: any) {
+      alert(`Error removing dish: ${err.message}`);
+    }
+  };
+
   const filteredItems = menuItems.filter(i => {
     if (selectedCatId && i.category_id !== selectedCatId) return false;
     if (search.trim()) {
@@ -335,15 +352,25 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
                     </span>
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <button
-                      onClick={() => handleOpenEdit(item)}
-                      className="btn btn-outline btn-sm"
-                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-                      title="Edit Dish Details & Cost"
-                    >
-                      <Edit3 size={13} color="var(--brand-gold)" />
-                      <span>Edit</span>
-                    </button>
+                    <div style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
+                      <button
+                        onClick={() => handleOpenEdit(item)}
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
+                        title="Edit Dish Details & Cost"
+                      >
+                        <Edit3 size={13} color="var(--brand-gold)" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteItem(item)}
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.45rem', color: '#B91C1C', borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}
+                        title="Remove Dish from Menu"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -497,22 +524,36 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
                 ✨ <strong>Automatic Sync:</strong> This item will immediately appear in the brochure menu, proposal builder, and the back-office costing table.
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' }}>
-                <button
-                  type="button"
-                  onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }}
-                  className="btn btn-outline"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={isEditModalOpen ? handleSaveEditItem : handleSaveNewItem}
-                  disabled={isSaving}
-                  className="btn btn-gold"
-                >
-                  {isSaving ? 'Saving...' : (isEditModalOpen ? 'Save Changes' : 'Add Dish & Sync Cost')}
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                {isEditModalOpen && editingItem ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteItem(editingItem)}
+                    className="btn btn-outline"
+                    style={{ color: '#B91C1C', borderColor: '#FECACA', backgroundColor: '#FEF2F2', fontSize: '0.8125rem' }}
+                  >
+                    <Trash2 size={14} />
+                    <span>Remove Dish</span>
+                  </button>
+                ) : <div />}
+
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }}
+                    className="btn btn-outline"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={isEditModalOpen ? handleSaveEditItem : handleSaveNewItem}
+                    disabled={isSaving}
+                    className="btn btn-gold"
+                  >
+                    {isSaving ? 'Saving...' : (isEditModalOpen ? 'Save Changes' : 'Add Dish & Sync Cost')}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
