@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MenuItem, Category, UserRole, PricingUnit, ServiceType } from '../types';
 import { api } from '../services/api';
-import { Search, Plus, Edit3, Check, X, Flame, Sparkles, Trash2 } from 'lucide-react';
+import { Search, Plus, Edit3, Check, X, Flame, Sparkles, Trash2, Upload, Image as ImageIcon, Utensils } from 'lucide-react';
 
 interface MenuManagementProps {
   userRole: UserRole;
@@ -19,6 +19,9 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form State
   const [formData, setFormData] = useState<{
@@ -29,6 +32,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
     pricing_unit: PricingUnit;
     service_type: ServiceType;
     description: string;
+    image_url: string;
     is_active: number;
   }>({
     name: '',
@@ -38,6 +42,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
     pricing_unit: 'PER_PERSON',
     service_type: 'STANDARD',
     description: '',
+    image_url: '',
     is_active: 1
   });
 
@@ -73,6 +78,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
       pricing_unit: 'PER_PERSON',
       service_type: 'STANDARD',
       description: '',
+      image_url: '',
       is_active: 1
     });
     setIsAddModalOpen(true);
@@ -90,9 +96,24 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
       pricing_unit: item.pricing_unit,
       service_type: item.service_type,
       description: item.description || '',
+      image_url: item.image_url || '',
       is_active: item.is_active
     });
     setIsEditModalOpen(true);
+  };
+
+  const handleImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingImage(true);
+      const res = await api.uploadImage(file);
+      setFormData(prev => ({ ...prev, image_url: res.url }));
+    } catch (err: any) {
+      alert(`Failed to upload image: ${err.message}`);
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const handleSaveNewItem = async () => {
@@ -119,6 +140,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
         pricing_unit: formData.pricing_unit,
         service_type: formData.service_type,
         description: formData.description.trim() || undefined,
+        image_url: formData.image_url.trim() || undefined,
         is_active: 1
       });
 
@@ -157,11 +179,11 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
         pricing_unit: formData.pricing_unit,
         service_type: formData.service_type,
         description: formData.description.trim() || undefined,
+        image_url: formData.image_url.trim() || undefined,
         is_active: formData.is_active
       });
 
       setIsEditModalOpen(false);
-      setEditingItem(null);
       await loadData();
       alert(`"${formData.name}" updated successfully!`);
     } catch (err: any) {
@@ -172,28 +194,30 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
   };
 
   const handleDeleteItem = async (item: MenuItem) => {
-    if (!window.confirm(`Are you sure you want to remove "${item.name}" from the menu?`)) {
-      return;
-    }
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete "${item.name}" from the menu?\n\nThis will remove it from the brochure menu, active costing, and quotation selection.`
+    );
+    if (!confirmDelete) return;
+
     try {
       await api.deleteMenuItem(item.id);
       if (isEditModalOpen) {
         setIsEditModalOpen(false);
-        setEditingItem(null);
       }
       await loadData();
-      alert(`"${item.name}" removed from the menu.`);
+      alert(`"${item.name}" has been removed successfully.`);
     } catch (err: any) {
-      alert(`Error removing dish: ${err.message}`);
+      alert(`Failed to delete item: ${err.message}`);
     }
   };
 
-  const filteredItems = menuItems.filter(i => {
-    if (selectedCatId && i.category_id !== selectedCatId) return false;
-    if (search.trim()) {
-      return i.name.toLowerCase().includes(search.toLowerCase());
-    }
-    return true;
+  // Filter items by category & search
+  const filteredItems = menuItems.filter(item => {
+    const matchesCat = selectedCatId === null || item.category_id === selectedCatId;
+    const matchesSearch = !search || 
+      item.name.toLowerCase().includes(search.toLowerCase()) ||
+      (item.description && item.description.toLowerCase().includes(search.toLowerCase()));
+    return matchesCat && matchesSearch;
   });
 
   return (
@@ -212,7 +236,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
             Brochure Menu & Items
           </h1>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-            Official catering delicacies from B & Co. All dishes sync directly with Costing & Proposals.
+            Official catering delicacies from B & Co with culinary photography. Dishes sync directly with Costing & Proposals.
           </p>
         </div>
 
@@ -283,7 +307,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Dish Name</th>
+              <th>Dish</th>
               <th>Category</th>
               <th>Pricing Unit</th>
               <th>Service Type</th>
@@ -309,22 +333,58 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
               filteredItems.map(item => (
                 <tr key={item.id}>
                   <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{ fontWeight: 700, color: 'var(--brand-emerald)', fontSize: '0.9rem' }}>
-                        {item.name}
-                      </span>
-                      {item.service_type === 'LIVE_COUNTER' && (
-                        <span className="badge badge-live" style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem' }}>
-                          <Flame size={10} />
-                          LIVE
-                        </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {item.image_url ? (
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          style={{
+                            width: '46px',
+                            height: '46px',
+                            borderRadius: 'var(--radius-md)',
+                            objectFit: 'cover',
+                            border: '1px solid var(--border-subtle)',
+                            flexShrink: 0
+                          }}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: '46px',
+                          height: '46px',
+                          borderRadius: 'var(--radius-md)',
+                          backgroundColor: 'var(--bg-parchment)',
+                          border: '1px solid var(--border-subtle)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--text-muted)',
+                          flexShrink: 0
+                        }}>
+                          <Utensils size={18} />
+                        </div>
                       )}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--brand-emerald)', fontSize: '0.9rem' }}>
+                            {item.name}
+                          </span>
+                          {item.service_type === 'LIVE_COUNTER' && (
+                            <span className="badge badge-live" style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem' }}>
+                              <Flame size={10} />
+                              LIVE
+                            </span>
+                          )}
+                        </div>
+                        {item.description && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', maxWidth: '320px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.description}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {item.description && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>
-                        {item.description}
-                      </span>
-                    )}
                   </td>
                   <td>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -357,16 +417,16 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
                         onClick={() => handleOpenEdit(item)}
                         className="btn btn-outline btn-sm"
                         style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
-                        title="Edit Dish Details & Cost"
+                        title="Edit Dish Details, Photo & Cost"
                       >
-                        <Edit3 size={13} color="var(--brand-gold)" />
+                        <Edit3 size={13} />
                         <span>Edit</span>
                       </button>
                       <button
                         onClick={() => handleDeleteItem(item)}
                         className="btn btn-outline btn-sm"
-                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.45rem', color: '#B91C1C', borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}
-                        title="Remove Dish from Menu"
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.45rem', color: '#DC2626', borderColor: '#FCA5A5' }}
+                        title="Delete Dish"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -379,14 +439,37 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
         </table>
       </div>
 
-      {/* ADD / EDIT ITEM MODAL */}
+      {/* Add / Edit Dish Modal */}
       {(isAddModalOpen || isEditModalOpen) && (
-        <div className="modal-backdrop" onClick={() => { setIsAddModalOpen(false); setIsEditModalOpen(false); }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px', padding: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 31, 23, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '1rem',
+          backdropFilter: 'blur(3px)'
+        }}>
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 'var(--radius-xl)',
+            width: '100%',
+            maxWidth: '540px',
+            maxHeight: '92vh',
+            overflowY: 'auto',
+            padding: '1.75rem',
+            boxShadow: 'var(--shadow-xl)',
+            border: '1px solid var(--brand-gold-border)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <div>
-                <span className="badge badge-gold" style={{ marginBottom: '0.25rem' }}>
-                  Brochure Catalog
+                <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--brand-gold)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {isEditModalOpen ? 'Update Catalog Item' : 'New Catalog Item'}
                 </span>
                 <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.35rem', color: 'var(--brand-emerald)' }}>
                   {isEditModalOpen ? `Edit: ${editingItem?.name}` : 'Add New Brochure Dish'}
@@ -402,6 +485,96 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {/* Dish Photo Preview & Upload */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+                  Dish Photography
+                </label>
+                <div style={{
+                  display: 'flex',
+                  gap: '1rem',
+                  alignItems: 'center',
+                  backgroundColor: 'var(--bg-parchment)',
+                  padding: '0.75rem',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)'
+                }}>
+                  <div style={{
+                    width: '72px',
+                    height: '72px',
+                    borderRadius: 'var(--radius-md)',
+                    overflow: 'hidden',
+                    backgroundColor: '#E5E7EB',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    border: '1.5px solid var(--border-medium)'
+                  }}>
+                    {formData.image_url ? (
+                      <img
+                        src={formData.image_url}
+                        alt="Dish Preview"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <ImageIcon size={26} color="var(--text-muted)" />
+                    )}
+                  </div>
+
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImageFileUpload}
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingImage}
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                      >
+                        <Upload size={13} />
+                        <span>{isUploadingImage ? 'Uploading...' : 'Upload Photo'}</span>
+                      </button>
+
+                      {formData.image_url && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, image_url: '' })}
+                          className="btn btn-outline btn-sm"
+                          style={{ fontSize: '0.75rem', color: '#DC2626' }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Or paste image URL (/images/dishes/...)"
+                      value={formData.image_url}
+                      onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.35rem 0.5rem',
+                        fontSize: '0.75rem',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border-medium)',
+                        backgroundColor: '#FFFFFF'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
                   Dish Name *
@@ -521,7 +694,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
                 color: 'var(--brand-emerald)',
                 border: '1px solid var(--brand-gold-border)'
               }}>
-                ✨ <strong>Automatic Sync:</strong> This item will immediately appear in the brochure menu, proposal builder, and the back-office costing table.
+                ✨ <strong>Automatic Sync:</strong> This item and photo will immediately appear in the brochure menu, proposal builder, and the back-office costing table.
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>

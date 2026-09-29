@@ -79,6 +79,23 @@ export const api = {
     request<MenuItem>(`/menu-items/${id}`, { method: 'PUT', body: JSON.stringify(item) }),
   deleteMenuItem: (id: number) =>
     request<{ success: boolean }>(`/menu-items/${id}`, { method: 'DELETE' }),
+  uploadImage: async (file: File): Promise<{ url: string; filename: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('bandco_token');
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('/api/upload-image', {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!res.ok) {
+      throw new Error('Image upload failed');
+    }
+    return res.json();
+  },
 
   // Pricing
   updatePrice: (menu_item_id: number, selling_price: number, reason?: string) =>

@@ -5,7 +5,7 @@ import hashlib
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 
-from fastapi import FastAPI, Depends, HTTPException, Query, Header, Response, status
+from fastapi import FastAPI, Depends, HTTPException, Query, Header, Response, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -31,11 +31,38 @@ app.add_middleware(
 # Static & Assets directories
 ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets"
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+FRONTEND_PUBLIC = Path(__file__).resolve().parent.parent.parent / "frontend" / "public"
+UPLOADS_DIR = FRONTEND_PUBLIC / "images" / "dishes"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 if FRONTEND_DIST.exists() and (FRONTEND_DIST / "assets").exists():
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="frontend_assets")
 elif ASSETS_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+
+# Mount /images
+if FRONTEND_DIST.exists() and (FRONTEND_DIST / "images").exists():
+    app.mount("/images", StaticFiles(directory=str(FRONTEND_DIST / "images")), name="dist_images")
+elif (FRONTEND_PUBLIC / "images").exists():
+    app.mount("/images", StaticFiles(directory=str(FRONTEND_PUBLIC / "images")), name="public_images")
+
+@app.post("/api/upload-image")
+async def upload_image(file: UploadFile = File(...)):
+    import re
+    # Clean filename
+    clean_name = re.sub(r'[^a-zA-Z0-9_\.-]', '_', file.filename.lower())
+    target_path = UPLOADS_DIR / clean_name
+    content = await file.read()
+    with open(target_path, "wb") as buffer:
+        buffer.write(content)
+
+    # Sync to dist if present
+    if FRONTEND_DIST.exists() and (FRONTEND_DIST / "images" / "dishes").exists():
+        dist_path = FRONTEND_DIST / "images" / "dishes" / clean_name
+        with open(dist_path, "wb") as buffer:
+            buffer.write(content)
+
+    return {"url": f"/images/dishes/{clean_name}", "filename": clean_name}
 
 # Helper for passwords
 def hash_pw(pw: str) -> str:
