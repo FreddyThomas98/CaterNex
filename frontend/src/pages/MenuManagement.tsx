@@ -200,13 +200,17 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
     if (!confirmDelete) return;
 
     try {
-      await api.deleteMenuItem(item.id);
+      // Optimistic instant UI update
+      setMenuItems(prev => prev.filter(m => m.id !== item.id));
       if (isEditModalOpen) {
         setIsEditModalOpen(false);
       }
+
+      await api.deleteMenuItem(item.id);
       await loadData();
       alert(`"${item.name}" has been removed successfully.`);
     } catch (err: any) {
+      await loadData(); // Revert on failure
       alert(`Failed to delete item: ${err.message}`);
     }
   };
@@ -423,7 +427,11 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
                         <span>Edit</span>
                       </button>
                       <button
-                        onClick={() => handleDeleteItem(item)}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteItem(item);
+                        }}
                         className="btn btn-outline btn-sm"
                         style={{ fontSize: '0.75rem', padding: '0.25rem 0.45rem', color: '#DC2626', borderColor: '#FCA5A5' }}
                         title="Delete Dish"
