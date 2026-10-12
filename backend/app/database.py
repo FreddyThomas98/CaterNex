@@ -18,14 +18,40 @@ def init_db():
     cursor = conn.cursor()
     cursor.execute("PRAGMA foreign_keys = ON;")
 
-    # 1. Users & Roles
+    # 0. Multi-Tenant Table: tenants
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS tenants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        slug TEXT UNIQUE NOT NULL,
+        tagline TEXT,
+        logo_path TEXT,
+        phone1 TEXT,
+        phone2 TEXT,
+        email TEXT,
+        location1 TEXT,
+        location2 TEXT,
+        website TEXT,
+        gst_number TEXT,
+        quotation_prefix TEXT DEFAULT 'QT-',
+        default_terms TEXT,
+        currency_symbol TEXT DEFAULT '₹',
+        date_format TEXT DEFAULT 'DD/MM/YYYY',
+        is_active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    ''')
+
+    # 1. Users & Roles (tenant_id is NULL for SUPER_ADMIN)
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         full_name TEXT NOT NULL,
-        role TEXT NOT NULL, -- ADMIN, MANAGER, SALESPERSON, KITCHEN, ACCOUNTS
+        role TEXT NOT NULL, -- SUPER_ADMIN, ADMIN, MANAGER, SALESPERSON, KITCHEN, ACCOUNTS
         max_discount_pct REAL DEFAULT 5.0,
         is_active INTEGER DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -36,6 +62,7 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS clients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         company TEXT,
         phone TEXT NOT NULL,
@@ -51,6 +78,7 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
         event_type TEXT NOT NULL, -- Wedding, Engagement, Reception, Birthday, Corporate, etc.
         event_date TEXT NOT NULL,
@@ -68,7 +96,8 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
         description TEXT,
         display_order INTEGER DEFAULT 0,
         is_active INTEGER DEFAULT 1
@@ -79,13 +108,18 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS menu_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
         name TEXT NOT NULL,
         description TEXT,
         image_url TEXT,
         service_type TEXT DEFAULT 'STANDARD', -- STANDARD, LIVE_COUNTER, STATION, SPECIAL
         pricing_unit TEXT DEFAULT 'PER_PERSON', -- PER_PERSON, PER_PLATE, PER_KG, PER_LITRE, PER_PIECE, PER_EVENT, FIXED_QUANTITY
-        selling_price REAL, -- Configurable from Admin. Can be null/demo
+        selling_price REAL, -- Configurable from Admin
+        food_cost REAL,
+        labour_cost REAL,
+        packaging_cost REAL,
+        overhead_cost REAL,
         is_demo_price INTEGER DEFAULT 0,
         is_seasonal INTEGER DEFAULT 0,
         is_active INTEGER DEFAULT 1,
@@ -99,6 +133,7 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS price_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         menu_item_id INTEGER REFERENCES menu_items(id) ON DELETE CASCADE,
         old_price REAL,
         new_price REAL,
@@ -112,6 +147,7 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS packages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         description TEXT,
         image_url TEXT,
@@ -136,12 +172,13 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS addons (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         description TEXT,
         image_url TEXT,
         service_type TEXT DEFAULT 'STATION',
         selling_price REAL NOT NULL,
-        pricing_unit TEXT DEFAULT 'PER_EVENT', -- PER_PERSON, PER_EVENT, PER_HOUR, PER_STALL
+        pricing_unit TEXT DEFAULT 'PER_EVENT',
         internal_cost REAL DEFAULT 0,
         is_active INTEGER DEFAULT 1
     );
@@ -151,8 +188,10 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS ingredients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
-        unit TEXT NOT NULL, -- kg, g, litre, ml, piece, packet, box
+        category TEXT DEFAULT 'Spices & Groceries', -- Meat & Poultry, Seafood, Fresh Vegetables, Dairy & Oils, Spices & Groceries, Packaging & Disposables
+        unit TEXT NOT NULL, -- kg, g, litre, ml, piece, packet, box, can
         purchase_price REAL NOT NULL,
         wastage_pct REAL DEFAULT 5.0,
         effective_cost REAL,
@@ -166,9 +205,11 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS recipes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         menu_item_id INTEGER UNIQUE REFERENCES menu_items(id) ON DELETE CASCADE,
-        portion_yield INTEGER DEFAULT 1, -- e.g. 1 portion or 100 portions
+        portion_yield INTEGER DEFAULT 100, -- e.g. batch yield per 100 portions
         instructions TEXT,
+        prep_time_mins INTEGER DEFAULT 60,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     ''')
@@ -181,6 +222,7 @@ def init_db():
         ingredient_id INTEGER REFERENCES ingredients(id) ON DELETE CASCADE,
         quantity REAL NOT NULL,
         unit TEXT NOT NULL,
+        notes TEXT,
         UNIQUE(recipe_id, ingredient_id)
     );
     ''')
@@ -189,12 +231,13 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS labour_types (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         title TEXT NOT NULL,
         daily_wage REAL NOT NULL,
         hourly_wage REAL,
         working_hours REAL DEFAULT 8.0,
-        staff_ratio_guests INTEGER, -- e.g. 25 guests per 1 server
-        calculation_method TEXT DEFAULT 'PER_DAY', -- PER_DAY, PER_EVENT, PER_GUEST_RATIO
+        staff_ratio_guests INTEGER,
+        calculation_method TEXT DEFAULT 'PER_DAY',
         status TEXT DEFAULT 'ACTIVE'
     );
     ''')
@@ -203,11 +246,12 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS packaging_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         unit_cost REAL NOT NULL,
         unit TEXT DEFAULT 'piece',
         default_qty_per_guest REAL DEFAULT 1.0,
-        calculation_method TEXT DEFAULT 'PER_GUEST', -- PER_GUEST, PER_EVENT
+        calculation_method TEXT DEFAULT 'PER_GUEST',
         status TEXT DEFAULT 'ACTIVE'
     );
     ''')
@@ -216,8 +260,9 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS overhead_rules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
-        calculation_type TEXT NOT NULL, -- FIXED_PER_EVENT, PER_GUEST, PCT_OF_FOOD_COST, PCT_OF_TOTAL
+        calculation_type TEXT NOT NULL,
         value REAL NOT NULL,
         status TEXT DEFAULT 'ACTIVE'
     );
@@ -227,6 +272,7 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS profit_rules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         rule_type TEXT DEFAULT 'TARGET_MARGIN_PCT',
         target_pct REAL DEFAULT 30.0,
@@ -238,6 +284,7 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS tax_rules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         tax_percentage REAL NOT NULL DEFAULT 5.0,
         is_inclusive INTEGER DEFAULT 0,
@@ -249,18 +296,19 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS quotations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         quotation_number TEXT UNIQUE NOT NULL,
         client_id INTEGER REFERENCES clients(id) ON DELETE RESTRICT,
         event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
         guest_count INTEGER NOT NULL DEFAULT 500,
         subtotal REAL NOT NULL DEFAULT 0,
-        discount_type TEXT DEFAULT 'PERCENTAGE', -- PERCENTAGE or FIXED
+        discount_type TEXT DEFAULT 'PERCENTAGE',
         discount_value REAL DEFAULT 0,
         discount_amount REAL DEFAULT 0,
         tax_percentage REAL DEFAULT 5.0,
         tax_amount REAL DEFAULT 0,
         grand_total REAL NOT NULL DEFAULT 0,
-        status TEXT DEFAULT 'DRAFT', -- DRAFT, SENT, UNDER_REVIEW, APPROVED, CONFIRMED, CANCELLED, EXPIRED
+        status TEXT DEFAULT 'DRAFT',
         terms_and_conditions TEXT,
         special_notes TEXT,
         created_by TEXT DEFAULT 'Salesperson',
@@ -269,7 +317,7 @@ def init_db():
     );
     ''')
 
-    # 19. Quotation Items (with snapshots to preserve historical prices)
+    # 19. Quotation Items
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS quotation_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -299,48 +347,59 @@ def init_db():
     );
     ''')
 
-    # 21. Company Settings
+    # 21. Event Procurement / Purchase Lists (saved checklists)
     cursor.execute('''
-    CREATE TABLE IF NOT EXISTS company_settings (
-        id INTEGER PRIMARY KEY CHECK (id = 1),
-        company_name TEXT DEFAULT 'B & Co',
-        tagline TEXT DEFAULT 'WEDDING EVENTS AND CATERS',
-        phone1 TEXT DEFAULT '+91 790 725 4973',
-        phone2 TEXT DEFAULT '+91 9072 400 824',
-        email TEXT DEFAULT 'events@bandco.com',
-        location1 TEXT DEFAULT 'Sasthamcotta, Kollam',
-        location2 TEXT DEFAULT 'Trivandrum, Kerala',
-        website TEXT DEFAULT 'www.bandcoevents.com',
-        gst_number TEXT DEFAULT '32AAECB1234F1Z9',
-        quotation_prefix TEXT DEFAULT 'QT-2026-',
-        default_terms TEXT DEFAULT '1. Seasonal items like specific fish, fruits are subjected to their availability.\n2. 50% advance upon event confirmation, balance 50% prior to event commencement.\n3. Final guest count must be re-confirmed at least 5 business days prior to the event.',
-        currency_symbol TEXT DEFAULT '₹',
-        date_format TEXT DEFAULT 'DD/MM/YYYY',
-        logo_path TEXT DEFAULT '/assets/logo.jpg',
+    CREATE TABLE IF NOT EXISTS event_purchase_lists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        quotation_id INTEGER REFERENCES quotations(id) ON DELETE SET NULL,
+        total_estimated_cost REAL DEFAULT 0,
+        status TEXT DEFAULT 'PENDING', -- PENDING, PARTIALLY_PURCHASED, COMPLETED
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     ''')
 
-    # Ensure cost columns exist on menu_items for editable costing
-    for col_def in [
-        "food_cost REAL",
-        "labour_cost REAL",
-        "packaging_cost REAL",
-        "overhead_cost REAL"
-    ]:
-        try:
-            cursor.execute(f"ALTER TABLE menu_items ADD COLUMN {col_def}")
-        except Exception:
-            pass
-
-    # Populate initial costing estimates for existing items where food_cost is null
     cursor.execute('''
-        UPDATE menu_items SET
-            food_cost = ROUND(selling_price * 0.40, 2),
-            labour_cost = ROUND(selling_price * 0.15, 2),
-            packaging_cost = ROUND(selling_price * 0.05, 2),
-            overhead_cost = ROUND(selling_price * 0.08, 2)
-        WHERE food_cost IS NULL AND selling_price IS NOT NULL
+    CREATE TABLE IF NOT EXISTS event_purchase_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purchase_list_id INTEGER REFERENCES event_purchase_lists(id) ON DELETE CASCADE,
+        ingredient_id INTEGER REFERENCES ingredients(id) ON DELETE SET NULL,
+        ingredient_name TEXT NOT NULL,
+        category TEXT DEFAULT 'Spices & Groceries',
+        quantity_required REAL NOT NULL,
+        quantity_purchased REAL DEFAULT 0,
+        unit TEXT NOT NULL,
+        unit_price REAL DEFAULT 0,
+        total_price REAL DEFAULT 0,
+        supplier TEXT,
+        is_purchased INTEGER DEFAULT 0,
+        notes TEXT
+    );
+    ''')
+
+    # 22. Company Settings (Fallback / active tenant profile)
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS company_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        company_name TEXT DEFAULT 'Royal Feast Catering',
+        tagline TEXT DEFAULT 'PREMIUM BANQUET & WEDDING CATERING',
+        phone1 TEXT DEFAULT '+91 98765 43210',
+        phone2 TEXT DEFAULT '+91 98765 43211',
+        email TEXT DEFAULT 'contact@royalfeast.com',
+        location1 TEXT DEFAULT 'City Center',
+        location2 TEXT DEFAULT 'Metro Plaza',
+        website TEXT DEFAULT 'www.royalfeastcatering.com',
+        gst_number TEXT DEFAULT '32AAECB9876F1Z5',
+        quotation_prefix TEXT DEFAULT 'QT-2026-',
+        default_terms TEXT DEFAULT '1. 50% advance upon booking confirmation, balance prior to event.\n2. Final guest count must be re-confirmed at least 3 business days prior.\n3. Seasonal items subject to availability.',
+        currency_symbol TEXT DEFAULT '₹',
+        date_format TEXT DEFAULT 'DD/MM/YYYY',
+        logo_path TEXT DEFAULT '/images/default-catering-logo.png',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
     ''')
 
     conn.commit()

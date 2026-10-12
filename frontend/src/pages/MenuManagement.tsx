@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MenuItem, Category, UserRole, PricingUnit, ServiceType } from '../types';
 import { api } from '../services/api';
-import { Search, Plus, Edit3, Check, X, Flame, Sparkles, Trash2, Upload, Image as ImageIcon, Utensils } from 'lucide-react';
+import { Search, Plus, Edit3, Check, X, Flame, Sparkles, Trash2, Upload, Image as ImageIcon, Utensils, ChefHat } from 'lucide-react';
+import { RecipeModal } from '../components/RecipeModal';
 
 interface MenuManagementProps {
   userRole: UserRole;
@@ -17,6 +18,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [recipeModalItem, setRecipeModalItem] = useState<MenuItem | null>(null);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -240,7 +242,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
             Brochure Menu & Items
           </h1>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-            Official catering delicacies from B & Co with culinary photography. Dishes sync directly with Costing & Proposals.
+            Catering delicacies catalog with culinary photography and custom recipes. Dishes sync directly with Costing & Proposals.
           </p>
         </div>
 
@@ -417,6 +419,15 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     <div style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
+                      <button
+                        onClick={() => setRecipeModalItem(item)}
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem', color: '#166534', borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' }}
+                        title="Configure Dish Recipe & Raw Ingredients Formula"
+                      >
+                        <ChefHat size={13} />
+                        <span>Recipe</span>
+                      </button>
                       <button
                         onClick={() => handleOpenEdit(item)}
                         className="btn btn-outline btn-sm"
@@ -739,6 +750,15 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ userRole }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Recipe Modal */}
+      {recipeModalItem && (
+        <RecipeModal
+          item={recipeModalItem}
+          onClose={() => setRecipeModalItem(null)}
+          onSaved={loadData}
+        />
       )}
     </div>
   );

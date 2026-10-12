@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserRole } from '../types';
+import { UserRole, Tenant } from '../types';
 import {
   Sparkles,
   FileText,
@@ -7,34 +7,47 @@ import {
   Users,
   UtensilsCrossed,
   Calculator,
-  ShieldCheck
+  ShoppingCart,
+  Crown
 } from 'lucide-react';
 
 interface SidebarProps {
   currentView: string;
   onNavigate: (view: string) => void;
   userRole?: UserRole;
+  activeTenant?: Tenant | null;
   isOpen?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onNavigate,
+  userRole = 'ADMIN',
+  activeTenant,
   isOpen = true
 }) => {
+  const isSuperAdmin = userRole === 'SUPER_ADMIN';
+
   const navItems = [
+    ...(isSuperAdmin ? [{ id: 'super-admin', label: 'Catering Clients', icon: Crown, superAdminOnly: true }] : []),
     { id: 'new-quotation', label: 'New Quotation', icon: Sparkles, primary: true },
     { id: 'quotations', label: 'All Quotations', icon: FileText },
     { id: 'events', label: 'Events & Calendar', icon: Calendar },
+    { id: 'procurement', label: 'Purchase Lists', icon: ShoppingCart },
     { id: 'clients', label: 'Clients', icon: Users },
-    { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
-    { id: 'costing', label: 'Costing', icon: Calculator }
+    { id: 'menu', label: 'Menu & Recipes', icon: UtensilsCrossed },
+    { id: 'costing', label: 'Costing & Margins', icon: Calculator }
   ];
+
+  const logoSrc = activeTenant?.logo_path || '/images/default-catering-logo.png';
+  const brandName = activeTenant?.name || 'Catering ERP';
+  const tagline = activeTenant?.tagline || 'Banquets & Events';
+  const locationText = activeTenant?.location1 ? `${activeTenant.location1}${activeTenant.location2 ? ' • ' + activeTenant.location2 : ''}` : 'Catering Management OS';
 
   return (
     <aside style={{
       width: '240px',
-      backgroundColor: '#0A2518', // Deep heritage Kerala emerald
+      backgroundColor: '#0A2518',
       color: '#EAF2EC',
       display: isOpen ? 'flex' : 'none',
       flexDirection: 'column',
@@ -46,48 +59,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }}>
       {/* Brand Header */}
       <div style={{
-        padding: '1.75rem 1.25rem 1.5rem',
+        padding: '1.5rem 1.25rem',
         borderBottom: '1px solid rgba(185, 146, 75, 0.15)',
         display: 'flex',
         alignItems: 'center',
         gap: '0.85rem'
       }}>
         <img
-          src="/logo.jpg"
-          alt="B & Co"
+          src={logoSrc}
+          alt={brandName}
           style={{
             width: '42px',
             height: '42px',
             borderRadius: '50%',
             border: '2px solid var(--brand-gold)',
-            objectFit: 'cover'
+            objectFit: 'cover',
+            backgroundColor: '#FAF7F2',
+            flexShrink: 0
+          }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = '/images/default-catering-logo.png';
           }}
         />
-        <div>
+        <div style={{ overflow: 'hidden' }}>
           <div style={{
             fontFamily: 'var(--font-serif)',
-            fontSize: '1.25rem',
+            fontSize: '1.15rem',
             fontWeight: 800,
             color: '#FFFFFF',
             lineHeight: 1.1,
-            letterSpacing: '0.02em'
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
           }}>
-            B & Co
+            {brandName}
           </div>
           <div style={{
             fontSize: '0.625rem',
             fontWeight: 700,
             color: 'var(--brand-gold)',
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase'
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            marginTop: '2px'
           }}>
-            Events & Caters
+            {tagline}
           </div>
         </div>
       </div>
 
-      {/* Minimal Navigation Links */}
-      <nav style={{ padding: '1.25rem 0.75rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+      {/* Navigation Links */}
+      <nav style={{ padding: '1.25rem 0.75rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem', overflowY: 'auto' }}>
         {navItems.map(item => {
           const isActive = currentView === item.id;
           const Icon = item.icon;
@@ -124,6 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           }
 
+          const isCrown = item.id === 'super-admin';
           return (
             <button
               key={item.id}
@@ -139,29 +164,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 fontWeight: isActive ? 700 : 500,
                 cursor: 'pointer',
                 border: 'none',
-                backgroundColor: isActive ? 'rgba(235, 243, 238, 0.12)' : 'transparent',
-                color: isActive ? '#FFFFFF' : '#A3BAAD',
+                backgroundColor: isActive ? 'rgba(235, 243, 238, 0.12)' : (isCrown ? 'rgba(185, 146, 75, 0.1)' : 'transparent'),
+                color: isActive ? '#FFFFFF' : (isCrown ? 'var(--brand-gold)' : '#A3BAAD'),
                 textAlign: 'left',
                 borderLeft: isActive ? '3px solid var(--brand-gold)' : '3px solid transparent',
                 transition: 'all 0.15s ease'
               }}
             >
-              <Icon size={17} color={isActive ? '#FFFFFF' : '#7D988A'} />
+              <Icon size={17} color={isActive ? '#FFFFFF' : (isCrown ? 'var(--brand-gold)' : '#7D988A')} />
               <span>{item.label}</span>
             </button>
           );
         })}
       </nav>
 
-      {/* Minimal Footer */}
+      {/* Footer */}
       <div style={{
         padding: '1rem',
         borderTop: '1px solid rgba(185, 146, 75, 0.15)',
         fontSize: '0.6875rem',
         color: '#6F8A7D',
-        textAlign: 'center'
+        textAlign: 'center',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis'
       }}>
-        Sasthamcotta, Kollam • Trivandrum
+        {locationText}
       </div>
     </aside>
   );

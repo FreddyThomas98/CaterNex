@@ -81,7 +81,7 @@ export const FoodCard: React.FC<FoodCardProps> = ({
           }}>
             <Utensils size={28} opacity={0.6} />
             <span style={{ fontSize: '0.7rem', marginTop: '0.35rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-              B & Co Gourmet
+              Catering Specialty
             </span>
           </div>
         )}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { CateringEvent, Client, UserRole } from '../types';
 import { api } from '../services/api';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, MapPin, Users, Clock, CheckCircle2, Sparkles, Filter, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, MapPin, Users, Clock, CheckCircle2, Sparkles, Filter, Trash2, ShoppingCart } from 'lucide-react';
+import { PurchaseListModal } from '../components/PurchaseListModal';
 
 interface EventManagementProps {
   userRole: UserRole;
@@ -19,6 +20,7 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
   // Calendar Month State (Defaults to Current Month / Today)
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(todayStr);
+  const [selectedPurchaseEventId, setSelectedPurchaseEventId] = useState<number | null>(null);
 
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -422,7 +424,16 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
                     </div>
                   )}
 
-                  <div style={{ marginTop: '0.85rem', paddingTop: '0.65rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                  <div style={{ marginTop: '0.85rem', paddingTop: '0.65rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => setSelectedPurchaseEventId(ev.id)}
+                      className="btn btn-outline btn-sm"
+                      style={{ fontSize: '0.75rem', color: '#166534', borderColor: '#BBF7D0', backgroundColor: '#F0FDF4', gap: '0.35rem' }}
+                      title="Calculate Raw Material Purchase List"
+                    >
+                      <ShoppingCart size={12} />
+                      <span>Purchase List</span>
+                    </button>
                     <button
                       onClick={() => handleDeleteEvent(ev.id)}
                       className="btn btn-outline btn-sm"
@@ -430,7 +441,7 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
                       title="Remove from Calendar"
                     >
                       <Trash2 size={12} />
-                      Remove Booking
+                      Remove
                     </button>
                     <button
                       onClick={() => onNavigate('new-quotation', { clientId: ev.client_id, eventId: ev.id })}
@@ -569,6 +580,14 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
             </div>
           </div>
         </div>
+      )}
+
+      {/* Purchase List Modal */}
+      {selectedPurchaseEventId && (
+        <PurchaseListModal
+          eventId={selectedPurchaseEventId}
+          onClose={() => setSelectedPurchaseEventId(null)}
+        />
       )}
     </div>
   );

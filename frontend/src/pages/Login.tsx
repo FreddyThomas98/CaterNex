@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { User } from '../types';
+import { User, Tenant } from '../types';
 import { api } from '../services/api';
-import { Lock, Mail, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Lock, Mail, ShieldCheck, ArrowRight, Crown, Building2, ChefHat, ShoppingCart } from 'lucide-react';
 
 interface LoginProps {
-  onLoginSuccess: (user: User, token: string) => void;
+  onLoginSuccess: (user: User, token: string, tenant: Tenant | null) => void;
 }
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  const [email, setEmail] = useState('admin@bandco.com');
+  const [email, setEmail] = useState('superadmin@cateringos.com');
   const [password, setPassword] = useState('admin123');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,18 +19,30 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setError(null);
     try {
       const res = await api.login(email.trim(), password);
-      localStorage.setItem('bandco_token', res.token);
-      localStorage.setItem('bandco_user', JSON.stringify(res.user));
-      onLoginSuccess(res.user, res.token);
+      localStorage.setItem('catering_token', res.token);
+      localStorage.setItem('catering_user', JSON.stringify(res.user));
+      if (res.tenant) {
+        localStorage.setItem('active_tenant', JSON.stringify(res.tenant));
+        localStorage.setItem('active_tenant_id', String(res.tenant.id));
+      } else {
+        localStorage.removeItem('active_tenant_id');
+      }
+      onLoginSuccess(res.user, res.token, res.tenant);
     } catch (err: any) {
-      setError(err.message || 'Invalid administrator credentials');
+      setError(err.message || 'Invalid login credentials');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFillAdmin = () => {
-    setEmail('admin@bandco.com');
+  const fillSuperAdmin = () => {
+    setEmail('superadmin@cateringos.com');
+    setPassword('admin123');
+    setError(null);
+  };
+
+  const fillBusinessAdmin = () => {
+    setEmail('admin@royalfeast.com');
     setPassword('admin123');
     setError(null);
   };
@@ -56,7 +68,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))'
       }}>
-        {/* Left Column: Heritage Brand Presentation */}
+        {/* Left Column: SaaS Platform Presentation */}
         <div style={{
           backgroundColor: '#092417',
           color: '#FFFFFF',
@@ -67,83 +79,119 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           position: 'relative'
         }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-              <img
-                src="/logo.jpg"
-                alt="B & Co"
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '50%',
-                  border: '2px solid var(--brand-gold)',
-                  boxShadow: '0 4px 14px rgba(185, 146, 75, 0.4)',
-                  objectFit: 'cover'
-                }}
-              />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '1.5rem' }}>
+              <div style={{
+                width: '54px',
+                height: '54px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(185, 146, 75, 0.25)',
+                border: '2px solid var(--brand-gold)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--brand-gold)'
+              }}>
+                <ChefHat size={28} />
+              </div>
               <div>
                 <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.85rem', color: '#FFFFFF', lineHeight: 1.1 }}>
-                  B & Co
+                  CateringOS
                 </h1>
                 <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--brand-gold)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                  Wedding Events and Caters
+                  Multi-Tenant Banquet Platform
                 </div>
               </div>
             </div>
 
-            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.55rem', color: '#FAF3E3', lineHeight: 1.35, marginBottom: '1rem' }}>
-              Bespoke Kerala Wedding Catering & Quotation Platform
+            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.45rem', color: '#FAF3E3', lineHeight: 1.35, marginBottom: '1rem' }}>
+              White-Label Catering ERP, Recipes & Billing Platform
             </h2>
 
-            <p style={{ fontSize: '0.875rem', color: '#B0C4B8', lineHeight: 1.6 }}>
-              Administrative portal for wedding quotations, client bookings, event calendar, bespoke brochure menu customization, and cost management.
+            <p style={{ fontSize: '0.875rem', color: '#B0C4B8', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+              Universal software built for any catering company. Add recipes, generate automated raw material purchase lists for events, manage banquets, and produce custom branded client proposals.
             </p>
+
+            {/* Platform Feature highlights */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.8125rem', color: '#EAF2EC' }}>
+                <Crown size={16} color="var(--brand-gold)" />
+                <span>Super Admin hub to onboard any catering client</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.8125rem', color: '#EAF2EC' }}>
+                <Building2 size={16} color="var(--brand-gold)" />
+                <span>Fully white-labeled with client logo, name & GST</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.8125rem', color: '#EAF2EC' }}>
+                <ShoppingCart size={16} color="var(--brand-gold)" />
+                <span>Automated purchase & grocery lists scaled to headcounts</span>
+              </div>
+            </div>
           </div>
 
-          <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(185, 146, 75, 0.25)', fontSize: '0.75rem', color: '#8FA89A' }}>
-            <div style={{ fontWeight: 700, color: 'var(--brand-gold)', marginBottom: '0.2rem' }}>
-              Sasthamcotta, Kollam • Trivandrum
-            </div>
-            <div>+91 790 725 4973 | +91 9072 400 824</div>
+          <div style={{ marginTop: '2.5rem', paddingTop: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.6)' }}>
+            Universal Catering SaaS Platform
           </div>
         </div>
 
-        {/* Right Column: Admin Login Card */}
+        {/* Right Column: Login Form */}
         <div style={{ padding: '3rem 2.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ marginBottom: '1.75rem' }}>
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              backgroundColor: 'rgba(185, 146, 75, 0.12)',
-              color: 'var(--brand-gold)',
-              padding: '0.25rem 0.65rem',
-              borderRadius: 'var(--radius-full)',
-              fontSize: '0.6875rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              marginBottom: '0.65rem'
-            }}>
-              <ShieldCheck size={13} />
-              Administrator Access
-            </div>
-            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.65rem', color: 'var(--brand-emerald)', marginBottom: '0.35rem' }}>
-              Admin Sign In
+            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.55rem', color: 'var(--brand-emerald)', marginBottom: '0.35rem' }}>
+              Sign In to Your Workspace
             </h2>
             <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-              Sign in with your administrative credentials to manage quotations, events, and pricing.
+              Enter your credentials to access the management portal.
             </p>
+          </div>
+
+          {/* Quick Demo Login Chips */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+              Quick Login Demo Profiles:
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={fillSuperAdmin}
+                className="btn btn-outline btn-sm"
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--brand-gold)',
+                  borderColor: 'var(--brand-gold)',
+                  backgroundColor: 'rgba(185, 146, 75, 0.08)',
+                  gap: '0.35rem'
+                }}
+              >
+                <Crown size={13} />
+                <span>Super Admin (Us)</span>
+              </button>
+              <button
+                type="button"
+                onClick={fillBusinessAdmin}
+                className="btn btn-outline btn-sm"
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--brand-emerald)',
+                  borderColor: 'var(--brand-emerald)',
+                  backgroundColor: 'rgba(14, 51, 33, 0.06)',
+                  gap: '0.35rem'
+                }}
+              >
+                <Building2 size={13} />
+                <span>Catering Business Admin</span>
+              </button>
+            </div>
           </div>
 
           {error && (
             <div style={{
               backgroundColor: '#FEF2F2',
-              color: '#B91C1C',
+              border: '1px solid #FECACA',
+              color: '#991B1B',
               padding: '0.75rem 1rem',
-              borderRadius: 'var(--radius-sm)',
+              borderRadius: 'var(--radius-md)',
               fontSize: '0.8125rem',
-              marginBottom: '1rem',
-              border: '1px solid #FECACA'
+              marginBottom: '1.25rem'
             }}>
               {error}
             </div>
@@ -151,51 +199,37 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                Admin Email Address
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                Email Address
               </label>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                border: '1.5px solid var(--border-medium)',
-                borderRadius: 'var(--radius-md)',
-                padding: '0.65rem 0.85rem',
-                backgroundColor: '#FAFAF9'
-              }}>
-                <Mail size={16} color="var(--text-muted)" />
+              <div style={{ position: 'relative' }}>
+                <Mail size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@bandco.com"
-                  style={{ border: 'none', outline: 'none', width: '100%', fontSize: '0.875rem', backgroundColor: 'transparent' }}
+                  placeholder="admin@cateringos.com"
+                  className="form-control"
+                  style={{ paddingLeft: '2.5rem', fontSize: '0.875rem' }}
                 />
               </div>
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                Admin Password
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                Password
               </label>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                border: '1.5px solid var(--border-medium)',
-                borderRadius: 'var(--radius-md)',
-                padding: '0.65rem 0.85rem',
-                backgroundColor: '#FAFAF9'
-              }}>
-                <Lock size={16} color="var(--text-muted)" />
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  style={{ border: 'none', outline: 'none', width: '100%', fontSize: '0.875rem', backgroundColor: 'transparent' }}
+                  placeholder="Enter your password"
+                  className="form-control"
+                  style={{ paddingLeft: '2.5rem', fontSize: '0.875rem' }}
                 />
               </div>
             </div>
@@ -203,41 +237,20 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <button
               type="submit"
               disabled={loading}
-              className="btn btn-gold btn-lg"
-              style={{ width: '100%', marginTop: '0.5rem', justifyContent: 'center' }}
+              className="btn btn-primary"
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                fontSize: '0.875rem',
+                fontWeight: 700,
+                marginTop: '0.5rem',
+                justifyContent: 'center'
+              }}
             >
-              <span>{loading ? 'Verifying Admin...' : 'Sign In as Administrator'}</span>
+              <span>{loading ? 'Authenticating...' : 'Sign In to Workspace'}</span>
               <ArrowRight size={16} />
             </button>
           </form>
-
-          {/* Quick Fill Helper for Demo / Testing */}
-          <div style={{
-            marginTop: '1.75rem',
-            paddingTop: '1rem',
-            borderTop: '1px dashed var(--border-medium)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: '0.75rem',
-            color: 'var(--text-muted)'
-          }}>
-            <span>Default Admin Account:</span>
-            <button
-              type="button"
-              onClick={handleFillAdmin}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--brand-gold)',
-                fontWeight: 700,
-                cursor: 'pointer',
-                textDecoration: 'underline'
-              }}
-            >
-              Fill Credentials (admin@bandco.com)
-            </button>
-          </div>
         </div>
       </div>
     </div>

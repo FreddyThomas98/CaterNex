@@ -50,7 +50,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userRole, onNavigate }) =>
             Executive Overview
           </span>
           <h1 style={{ fontSize: '2rem', lineHeight: 1.15 }}>
-            B & Co Catering Management
+            Catering Operations & Overview
           </h1>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
             Welcome back. Monitor live event pipelines, quotations, and banquet operations.

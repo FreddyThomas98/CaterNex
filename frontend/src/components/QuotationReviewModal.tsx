@@ -178,14 +178,17 @@ export const QuotationReviewModal: React.FC<QuotationReviewModalProps> = ({
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
               <img
-                src="/logo.jpg"
-                alt="B & Co"
+                src={settings?.logo_path || '/images/default-catering-logo.png'}
+                alt={settings?.company_name || 'Catering Services'}
                 style={{
                   width: '72px',
                   height: '72px',
                   borderRadius: '50%',
                   border: '2px solid var(--brand-gold)',
                   objectFit: 'cover'
+                }}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/images/default-catering-logo.png';
                 }}
               />
               <div>
@@ -197,7 +200,7 @@ export const QuotationReviewModal: React.FC<QuotationReviewModalProps> = ({
                   lineHeight: 1.1,
                   letterSpacing: '0.02em'
                 }}>
-                  B & Co
+                  {settings?.company_name || 'Catering Services'}
                 </h1>
                 <div style={{
                   fontSize: '0.78125rem',
@@ -206,16 +209,16 @@ export const QuotationReviewModal: React.FC<QuotationReviewModalProps> = ({
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase'
                 }}>
-                  Wedding Events and Caters
+                  {settings?.tagline || 'Banquets & Event Catering'}
                 </div>
               </div>
             </div>
 
             <div style={{ textAlign: 'right', fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
               <div style={{ fontWeight: 700, color: 'var(--brand-emerald)', fontSize: '0.8125rem' }}>
-                +91 790 725 4973 | +91 9072 400 824
+                {[settings?.phone1, settings?.phone2].filter(Boolean).join(' | ') || '+91 98765 43210'}
               </div>
-              <div>Sasthamcotta, Kollam | Trivandrum</div>
+              <div>{[settings?.location1, settings?.location2].filter(Boolean).join(' | ') || 'City Center'}</div>
               <div style={{ marginTop: '0.25rem', fontWeight: 600, color: 'var(--brand-gold)' }}>
                 Proposal #{quotationNumber}
               </div>

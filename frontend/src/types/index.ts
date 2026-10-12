@@ -1,4 +1,29 @@
-export type UserRole = 'ADMIN' | 'MANAGER' | 'SALESPERSON' | 'KITCHEN' | 'ACCOUNTS';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'SALESPERSON' | 'KITCHEN' | 'ACCOUNTS';
+
+export interface Tenant {
+  id: number;
+  name: string;
+  slug: string;
+  tagline?: string;
+  logo_path?: string;
+  phone1?: string;
+  phone2?: string;
+  email?: string;
+  location1?: string;
+  location2?: string;
+  website?: string;
+  gst_number?: string;
+  quotation_prefix: string;
+  default_terms?: string;
+  currency_symbol: string;
+  date_format: string;
+  is_active: number;
+  created_at?: string;
+  item_count?: number;
+  quotation_count?: number;
+  event_count?: number;
+  admin_email?: string;
+}
 
 export interface User {
   id: number;
@@ -6,6 +31,7 @@ export interface User {
   full_name: string;
   role: UserRole;
   max_discount_pct: number;
+  tenant_id?: number | null;
 }
 
 export interface Category {
@@ -38,6 +64,7 @@ export interface MenuItem {
   is_seasonal: number;
   is_active: number;
   display_order: number;
+  ingredient_count?: number;
 }
 
 export interface Package {
@@ -194,12 +221,67 @@ export interface CostingOverview {
 export interface Ingredient {
   id: number;
   name: string;
+  category: string;
   unit: string;
   purchase_price: number;
   wastage_pct: number;
   effective_cost: number;
   supplier?: string;
   status: string;
+}
+
+export interface RecipeIngredient {
+  id?: number;
+  recipe_id?: number;
+  ingredient_id: number;
+  ingredient_name?: string;
+  ingredient_category?: string;
+  quantity: number;
+  unit: string;
+  notes?: string;
+  line_cost?: number;
+  purchase_price?: number;
+  wastage_pct?: number;
+  supplier?: string;
+}
+
+export interface Recipe {
+  id?: number;
+  menu_item_id: number;
+  dish_name?: string;
+  category_name?: string;
+  portion_yield: number;
+  instructions?: string;
+  prep_time_mins?: number;
+  total_batch_cost?: number;
+  cost_per_portion?: number;
+  ingredients: RecipeIngredient[];
+}
+
+export interface PurchaseItem {
+  ingredient_id: number;
+  ingredient_name: string;
+  category: string;
+  unit: string;
+  unit_price: number;
+  quantity_required: number;
+  total_price: number;
+  supplier?: string;
+  dishes_used_in: string[];
+  is_purchased: number;
+  quantity_purchased?: number;
+  notes?: string;
+}
+
+export interface EventPurchaseList {
+  total_estimated_cost: number;
+  total_items_count: number;
+  categories_grouped: Record<string, PurchaseItem[]>;
+  items: PurchaseItem[];
+  missing_recipes: { dish_name: string; reason: string }[];
+  event?: CateringEvent;
+  quotation?: Quotation;
+  guest_count: number;
 }
 
 export interface LabourType {

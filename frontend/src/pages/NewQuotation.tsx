@@ -267,8 +267,8 @@ export const NewQuotation: React.FC<NewQuotationProps> = ({ userRole, editQuotat
       discount_type: discountType,
       discount_value: discountValue,
       tax_percentage: taxPercentage,
-      special_notes: 'Created via B & Co Proposal Builder',
-      created_by: 'B & Co Representative'
+      special_notes: 'Created via Digital Proposal Builder',
+      created_by: 'Catering Representative'
     };
 
     try {

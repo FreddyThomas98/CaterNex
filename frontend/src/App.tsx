@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { User } from './types';
+import React, { useState, useEffect } from 'react';
+import { User, Tenant } from './types';
+import { api } from './services/api';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { Login } from './pages/Login';
@@ -9,15 +10,16 @@ import { ClientManagement } from './pages/ClientManagement';
 import { EventManagement } from './pages/EventManagement';
 import { MenuManagement } from './pages/MenuManagement';
 import { CostingManagement } from './pages/CostingManagement';
+import { ProcurementPage } from './pages/ProcurementPage';
+import { SuperAdminPortal } from './pages/SuperAdminPortal';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('bandco_user');
-    const token = localStorage.getItem('bandco_token');
+    const saved = localStorage.getItem('catering_user') || localStorage.getItem('bandco_user');
+    const token = localStorage.getItem('catering_token') || localStorage.getItem('bandco_token');
     if (saved && token) {
       try {
-        const u = JSON.parse(saved);
-        return { ...u, role: 'ADMIN' };
+        return JSON.parse(saved);
       } catch {
         return null;
       }
@@ -25,54 +27,147 @@ export function App() {
     return null;
   });
 
+  const [activeTenant, setActiveTenant] = useState<Tenant | null>(() => {
+    const savedTenant = localStorage.getItem('active_tenant');
+    if (savedTenant) {
+      try {
+        return JSON.parse(savedTenant);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  const [allTenants, setAllTenants] = useState<Tenant[]>([]);
   const [currentView, setCurrentView] = useState<string>('new-quotation');
   const [viewParams, setViewParams] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Load tenants and settings
+  const refreshTenants = async () => {
+    if (!currentUser) return;
+    try {
+      if (currentUser.role === 'SUPER_ADMIN') {
+        const tList = await api.getTenants();
+        setAllTenants(tList);
+        if (!activeTenant && tList.length > 0) {
+          setActiveTenant(tList[0]);
+          localStorage.setItem('active_tenant', JSON.stringify(tList[0]));
+          localStorage.setItem('active_tenant_id', String(tList[0].id));
+        }
+      } else {
+        const s = await api.getSettings();
+        if (s && s.company_name) {
+          const tObj: Tenant = {
+            id: s.id || 1,
+            name: s.company_name,
+            slug: 'tenant',
+            tagline: s.tagline,
+            logo_path: s.logo_path,
+            phone1: s.phone1,
+            phone2: s.phone2,
+            email: s.email,
+            location1: s.location1,
+            location2: s.location2,
+            website: s.website,
+            gst_number: s.gst_number,
+            quotation_prefix: s.quotation_prefix || 'QT-',
+            default_terms: s.default_terms,
+            currency_symbol: s.currency_symbol || '₹',
+            date_format: s.date_format || 'DD/MM/YYYY',
+            is_active: 1
+          };
+          setActiveTenant(tObj);
+          localStorage.setItem('active_tenant', JSON.stringify(tObj));
+          localStorage.setItem('active_tenant_id', String(tObj.id));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load active tenant details', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshTenants();
+  }, [currentUser]);
 
   const handleNavigate = (view: string, params?: any) => {
     setViewParams(params || null);
     setCurrentView(view);
   };
 
+  const handleSwitchTenant = (tenant: Tenant) => {
+    setActiveTenant(tenant);
+    localStorage.setItem('active_tenant', JSON.stringify(tenant));
+    localStorage.setItem('active_tenant_id', String(tenant.id));
+    setCurrentView('menu');
+  };
+
   const handleLogout = () => {
+    localStorage.removeItem('catering_token');
+    localStorage.removeItem('catering_user');
+    localStorage.removeItem('active_tenant');
+    localStorage.removeItem('active_tenant_id');
     localStorage.removeItem('bandco_token');
     localStorage.removeItem('bandco_user');
     setCurrentUser(null);
+    setActiveTenant(null);
   };
 
   if (!currentUser) {
     return (
       <Login
-        onLoginSuccess={(user) => {
-          const adminUser: User = { ...user, role: 'ADMIN', max_discount_pct: 100.0 };
-          setCurrentUser(adminUser);
-          localStorage.setItem('bandco_user', JSON.stringify(adminUser));
-          handleNavigate('new-quotation');
+        onLoginSuccess={(user, token, tenant) => {
+          setCurrentUser(user);
+          if (tenant) {
+            setActiveTenant(tenant);
+          }
+          if (user.role === 'SUPER_ADMIN') {
+            handleNavigate('super-admin');
+          } else {
+            handleNavigate('new-quotation');
+          }
         }}
       />
     );
   }
+
+  const role = currentUser.role || 'ADMIN';
 
   return (
     <div className="app-container">
       <Sidebar
         currentView={currentView}
         onNavigate={(view) => handleNavigate(view)}
-        userRole="ADMIN"
+        userRole={role}
+        activeTenant={activeTenant}
         isOpen={sidebarOpen}
       />
 
       <div className="main-content">
         <Navbar
           currentUser={currentUser}
+          activeTenant={activeTenant}
+          allTenants={allTenants}
+          onSelectTenant={handleSwitchTenant}
+          onNavigate={handleNavigate}
           onLogout={handleLogout}
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         />
 
         <main style={{ flex: 1, overflowY: 'auto' }}>
+          {currentView === 'super-admin' && (
+            <SuperAdminPortal onSwitchTenant={handleSwitchTenant} />
+          )}
+
+          {currentView === 'procurement' && (
+            <ProcurementPage />
+          )}
+
           {currentView === 'new-quotation' && (
             <NewQuotation
-              userRole="ADMIN"
+              userRole={role as any}
               editQuotationId={viewParams?.quotationId || null}
               onQuotationSaved={() => handleNavigate('quotations')}
               onResetEdit={() => setViewParams(null)}
@@ -81,31 +176,31 @@ export function App() {
 
           {currentView === 'quotations' && (
             <QuotationsList
-              userRole="ADMIN"
+              userRole={role as any}
               onNavigate={handleNavigate}
             />
           )}
 
           {currentView === 'events' && (
             <EventManagement
-              userRole="ADMIN"
+              userRole={role as any}
               onNavigate={handleNavigate}
             />
           )}
 
           {currentView === 'clients' && (
             <ClientManagement
-              userRole="ADMIN"
+              userRole={role as any}
               onNavigate={handleNavigate}
             />
           )}
 
           {currentView === 'menu' && (
-            <MenuManagement userRole="ADMIN" />
+            <MenuManagement userRole={role as any} />
           )}
 
           {currentView === 'costing' && (
-            <CostingManagement userRole="ADMIN" />
+            <CostingManagement userRole={role as any} />
           )}
         </main>
       </div>

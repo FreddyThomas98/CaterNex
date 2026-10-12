@@ -1,20 +1,27 @@
 import {
   User, Category, MenuItem, Package, Addon, Client, CateringEvent,
   Quotation, CompanySettings, CostingOverview, Ingredient, LabourType,
-  PackagingItem, OverheadRule, DashboardData
+  PackagingItem, OverheadRule, DashboardData, Tenant, Recipe, EventPurchaseList
 } from '../types';
 
 const API_BASE = '/api';
 
-function getAuthHeader(): Record<string, string> {
-  const token = localStorage.getItem('bandco_token') || '1:ADMIN:bandco';
-  return { 'Authorization': `Bearer ${token}` };
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('catering_token') || localStorage.getItem('bandco_token') || '1:ADMIN:catering';
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${token}`
+  };
+  const activeTenantId = localStorage.getItem('active_tenant_id');
+  if (activeTenantId) {
+    headers['X-Tenant-ID'] = activeTenantId;
+  }
+  return headers;
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const headers = {
     'Content-Type': 'application/json',
-    ...getAuthHeader(),
+    ...getAuthHeaders(),
     ...(options.headers || {})
   };
 
@@ -40,11 +47,21 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 export const api = {
   // Auth
   login: (email: string, password: string) =>
-    request<{ token: string; user: User }>('/auth/login', {
+    request<{ token: string; user: User; tenant: Tenant | null }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password })
     }),
   getUsers: () => request<User[]>('/auth/users'),
+
+  // Multi-Tenancy (Super Admin)
+  getTenants: () => request<Tenant[]>('/tenants'),
+  createTenant: (payload: any) =>
+    request<Tenant>('/tenants', { method: 'POST', body: JSON.stringify(payload) }),
+  getTenant: (id: number) => request<Tenant>(`/tenants/${id}`),
+  updateTenant: (id: number, payload: any) =>
+    request<Tenant>(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  createTenantAdmin: (id: number, payload: any) =>
+    request<any>(`/tenants/${id}/admin-user`, { method: 'POST', body: JSON.stringify(payload) }),
 
   // Settings
   getSettings: () => request<CompanySettings>('/settings'),
@@ -79,21 +96,35 @@ export const api = {
     request<MenuItem>(`/menu-items/${id}`, { method: 'PUT', body: JSON.stringify(item) }),
   deleteMenuItem: (id: number) =>
     request<{ success: boolean }>(`/menu-items/${id}`, { method: 'DELETE' }),
+  
+  // File Uploads
   uploadImage: async (file: File): Promise<{ url: string; filename: string }> => {
     const formData = new FormData();
     formData.append('file', file);
-    const token = localStorage.getItem('bandco_token');
-    const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const headers = getAuthHeaders();
+    delete (headers as any)['Content-Type'];
 
     const res = await fetch('/api/upload-image', {
       method: 'POST',
       headers,
       body: formData,
     });
-    if (!res.ok) {
-      throw new Error('Image upload failed');
-    }
+    if (!res.ok) throw new Error('Image upload failed');
+    return res.json();
+  },
+
+  uploadLogo: async (file: File): Promise<{ url: string; filename: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers = getAuthHeaders();
+    delete (headers as any)['Content-Type'];
+
+    const res = await fetch('/api/upload-logo', {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!res.ok) throw new Error('Logo upload failed');
     return res.json();
   },
 
@@ -159,22 +190,49 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ status })
     }),
-  duplicateQuotation: (id: number) =>
-    request<{ id: number; quotation_number: string }>(`/quotations/${id}/duplicate`, {
-      method: 'POST'
-    }),
   deleteQuotation: (id: number) =>
     request<{ success: boolean }>(`/quotations/${id}`, { method: 'DELETE' }),
-  getPublicQuotation: (quotation_number: string) =>
-    request<Quotation>(`/quotations/public/${quotation_number}`),
 
-  // Costing Engine (Admin & Manager Only)
+  // Recipes & Ingredients
+  getIngredients: (category?: string) => {
+    const q = category ? `?category=${encodeURIComponent(category)}` : '';
+    return request<Ingredient[]>(`/ingredients${q}`);
+  },
+  createIngredient: (data: Partial<Ingredient>) =>
+    request<Ingredient>('/ingredients', { method: 'POST', body: JSON.stringify(data) }),
+  updateIngredient: (id: number, data: Partial<Ingredient>) =>
+    request<Ingredient>(`/ingredients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteIngredient: (id: number) =>
+    request<{ success: boolean }>(`/ingredients/${id}`, { method: 'DELETE' }),
+
+  getRecipes: () => request<Recipe[]>('/recipes'),
+  getRecipeByMenuItem: (menuItemId: number) =>
+    request<Recipe>(`/recipes/item/${menuItemId}`),
+  saveRecipe: (recipeData: any) =>
+    request<{ success: boolean; recipe_id: number; cost_per_portion: number }>('/recipes', {
+      method: 'POST',
+      body: JSON.stringify(recipeData)
+    }),
+  deleteRecipe: (id: number) =>
+    request<{ success: boolean }>(`/recipes/${id}`, { method: 'DELETE' }),
+
+  // Automated Purchase / Procurement Lists
+  getEventPurchaseList: (eventId: number) =>
+    request<EventPurchaseList>(`/events/${eventId}/purchase-list`),
+  getQuotationPurchaseList: (quotationId: number) =>
+    request<EventPurchaseList>(`/quotations/${quotationId}/purchase-list`),
+  saveEventPurchaseList: (eventId: number, payload: any) =>
+    request<{ success: boolean }>(`/events/${eventId}/save-purchase-list`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+  getPurchaseListPdfUrl: (eventId: number) =>
+    `/api/events/${eventId}/purchase-list/pdf`,
+
+  // Costing Engine
   getCostingOverview: () => request<CostingOverview>('/costing/overview'),
   updateItemCost: (id: number, data: { food_cost?: number; labour_cost?: number; packaging_cost?: number; overhead_cost?: number; selling_price?: number }) =>
     request<any>(`/costing/items/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  getIngredients: () => request<Ingredient[]>('/costing/ingredients'),
-  createIngredient: (data: Partial<Ingredient>) =>
-    request<Ingredient>('/costing/ingredients', { method: 'POST', body: JSON.stringify(data) }),
   getLabour: () => request<LabourType[]>('/costing/labour'),
   getPackaging: () => request<PackagingItem[]>('/costing/packaging'),
   getOverheads: () => request<OverheadRule[]>('/costing/overheads'),

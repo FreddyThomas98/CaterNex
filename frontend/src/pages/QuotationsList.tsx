@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Quotation, UserRole } from '../types';
 import { api } from '../services/api';
 import { QuotationReviewModal } from '../components/QuotationReviewModal';
-import { Search, Plus, Download, Eye, Trash2, Edit3 } from 'lucide-react';
+import { PurchaseListModal } from '../components/PurchaseListModal';
+import { Search, Plus, Download, Eye, Trash2, Edit3, ShoppingCart } from 'lucide-react';
 
 interface QuotationsListProps {
   userRole: UserRole;
@@ -17,6 +18,7 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
 
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [selectedPurchaseQuoteId, setSelectedPurchaseQuoteId] = useState<number | null>(null);
 
   const loadQuotations = async () => {
     try {
@@ -221,6 +223,15 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
                       <button
+                        onClick={() => setSelectedPurchaseQuoteId(q.id)}
+                        className="btn btn-outline btn-sm"
+                        style={{ color: '#166534', borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' }}
+                        title="Calculate & View Raw Material Purchase List"
+                      >
+                        <ShoppingCart size={13} />
+                      </button>
+
+                      <button
                         onClick={() => handleOpenReview(q.id)}
                         className="btn btn-outline btn-sm"
                         title="View Proposal"
@@ -308,6 +319,14 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
             setIsReviewOpen(false);
             onNavigate('new-quotation', { quotationId: selectedQuotation.id });
           }}
+        />
+      )}
+
+      {/* Purchase List Modal */}
+      {selectedPurchaseQuoteId && (
+        <PurchaseListModal
+          quotationId={selectedPurchaseQuoteId}
+          onClose={() => setSelectedPurchaseQuoteId(null)}
         />
       )}
     </div>

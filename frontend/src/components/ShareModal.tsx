@@ -33,7 +33,18 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const shareUrl = `${window.location.origin}/proposal/${quotationNumber}`;
 
   // Formatted message
-  const message = `Warm greetings ${clientName || 'valued guest'}!\n\nHere is your custom wedding & event catering proposal from *B & Co Wedding Events and Caters*:\n\n✨ *Event:* ${eventType || 'Wedding Celebration'}\n👥 *Guest Count:* ${guestCount} Guests\n🍽️ *Base Rate:* ₹${perPersonRate.toLocaleString()} / person\n💰 *Total Investment:* ₹${grandTotal.toLocaleString()}\n📄 *Quotation Ref:* ${quotationNumber}\n\nReview your digital proposal anytime: ${shareUrl}\n\nFor inquiries or customizations, call us directly at +91 790 725 4973.\nSasthamcotta, Kollam & Trivandrum.`;
+  const savedTenantStr = localStorage.getItem('active_tenant');
+  let companyName = 'Catering Services';
+  let companyPhone = '+91 98765 43210';
+  if (savedTenantStr) {
+    try {
+      const parsed = JSON.parse(savedTenantStr);
+      if (parsed.name) companyName = parsed.name;
+      if (parsed.phone1) companyPhone = parsed.phone1;
+    } catch {}
+  }
+
+  const message = `Warm greetings ${clientName || 'valued guest'}!\n\nHere is your custom catering proposal from *${companyName}*:\n\n✨ *Event:* ${eventType || 'Celebration'}\n👥 *Guest Count:* ${guestCount} Guests\n🍽️ *Base Rate:* ₹${perPersonRate.toLocaleString()} / person\n💰 *Total Investment:* ₹${grandTotal.toLocaleString()}\n📄 *Quotation Ref:* ${quotationNumber}\n\nReview your digital proposal anytime: ${shareUrl}\n\nFor inquiries or customizations, contact us directly at ${companyPhone}.`;
 
   const handleOpenWhatsApp = () => {
     // Sanitize phone
