@@ -55,7 +55,7 @@ def hash_pw(pw: str) -> str:
 
 @app.post("/api/upload-image")
 async def upload_image(file: UploadFile = File(...)):
-    clean_name = re.sub(r'[^a-zA-Z0-9_\.-]', '_', file.filename.lower())
+    clean_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', file.filename.lower())
     target_path = UPLOADS_DISHES / clean_name
     content = await file.read()
     with open(target_path, "wb") as buffer:
@@ -68,7 +68,8 @@ async def upload_image(file: UploadFile = File(...)):
 
 @app.post("/api/upload-logo")
 async def upload_logo(file: UploadFile = File(...)):
-    clean_name = f"logo_{re.sub(r'[^a-zA-Z0-9_\.-]', '_', file.filename.lower())}"
+    clean_sub = re.sub(r'[^a-zA-Z0-9_.-]', '_', file.filename.lower())
+    clean_name = f"logo_{clean_sub}"
     target_path = UPLOADS_LOGOS / clean_name
     content = await file.read()
     with open(target_path, "wb") as buffer:
