@@ -250,7 +250,9 @@ def generate_quotation_pdf(quotation_data: dict, company_settings: dict) -> byte
     story.append(Spacer(1, 10))
 
     # 3. Menu Items by Category
-    currency = company_settings.get("currency_symbol", "₹")
+    currency = company_settings.get("currency_symbol") or "Rs."
+    if currency in ["₹", "INR"]:
+        currency = "Rs."
     items = quotation_data.get("items", []) or []
 
     categories_order = []
@@ -306,51 +308,99 @@ def generate_quotation_pdf(quotation_data: dict, company_settings: dict) -> byte
         ('BOTTOMPADDING', (0,1), (-1,-1), 4),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN', (3,0), (-1,-1), 'RIGHT'),
+        ('ALIGN', (4,0), (-1,-1), 'RIGHT'),
     ]))
     story.append(menu_table)
     story.append(Spacer(1, 10))
 
-    # 4. Financial Summary
+    # 4. Tableware & Cutlery Provision (Only if cutlery items exist)
+    cutlery_list = quotation_data.get("cutlery", []) or []
+    active_cutlery = [c for c in cutlery_list if c.get("is_selected") is not False and (c.get("quantity") or 0) > 0]
+    if active_cutlery:
+        story.append(Spacer(1, 4))
+        story.append(Paragraph(f"<b>TABLEWARE & CUTLERY PROVISION ({len(active_cutlery)} items allocated)</b>", cat_title_style))
+        story.append(Spacer(1, 4))
+        cutlery_data = [
+            [
+                Paragraph("<b>Item Name</b>", muted_style),
+                Paragraph("<b>Category</b>", muted_style),
+                Paragraph("<b>Allocated Quantity</b>", muted_style),
+                Paragraph("<b>Provision Status</b>", muted_style)
+            ]
+        ]
+        cutlery_extra_charges = 0
+        for c in active_cutlery:
+            c_name = c.get("cutlery_name") or c.get("name") or "Tableware Item"
+            c_cat = c.get("category") or "Tableware"
+            c_qty = f"{c.get('quantity', 0)} pcs"
+            is_inc = c.get("is_included", 1)
+            line_cost = c.get("total_cost") or (c.get("unit_cost", 0) * c.get("quantity", 0))
+            if is_inc == 0:
+                cutlery_extra_charges += line_cost
+                c_status = f"+ {currency} {line_cost:,.2f} Extra"
+            else:
+                c_status = "Included in Package"
+            cutlery_data.append([
+                Paragraph(c_name, body_style),
+                Paragraph(c_cat, muted_style),
+                Paragraph(c_qty, body_style),
+                Paragraph(f"<b>{c_status}</b>", body_style)
+            ])
+        c_table = Table(cutlery_data, colWidths=[180, 140, 90, 110])
+        c_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), ROW_BG),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor("#E2E8F0")),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ]))
+        story.append(KeepTogether(c_table))
+        story.append(Spacer(1, 10))
+
+    # 5. Financial Summary
     subtotal = quotation_data.get("subtotal", 0)
     discount_amount = quotation_data.get("discount_amount", 0)
+    discount_type = quotation_data.get("discount_type", "PERCENTAGE")
+    discount_value = quotation_data.get("discount_value", 0)
     tax_percentage = quotation_data.get("tax_percentage", 5.0)
     tax_amount = quotation_data.get("tax_amount", 0)
     grand_total = quotation_data.get("grand_total", 0)
 
     summary_rows = [
-        [Paragraph("<b>Subtotal:</b>", body_style), Paragraph(f"<b>{currency} {subtotal:,.2f}</b>", body_style)]
+        [Paragraph("<b>Menu & Services Subtotal:</b>", body_style), Paragraph(f"<b>{currency} {subtotal:,.2f}</b>", body_style)]
     ]
     if discount_amount > 0:
+        disc_label = f"Special Discount ({discount_value}%):" if discount_type == "PERCENTAGE" else "Special Discount / Concession:"
         summary_rows.append([
-            Paragraph("<b>Discount:</b>", body_style),
-            Paragraph(f"- {currency} {discount_amount:,.2f}", body_style)
+            Paragraph(f"<b><font color='{EMERALD_DARK}'>{disc_label}</font></b>", body_style),
+            Paragraph(f"<b><font color='{EMERALD_DARK}'>- {currency} {discount_amount:,.2f}</font></b>", body_style)
         ])
     if tax_amount > 0:
         summary_rows.append([
-            Paragraph(f"<b>Tax / GST ({tax_percentage}%):</b>", body_style),
+            Paragraph(f"<b>Catering GST / Tax ({tax_percentage}%):</b>", body_style),
             Paragraph(f"{currency} {tax_amount:,.2f}", body_style)
         ])
     summary_rows.append([
-        Paragraph("<b>GRAND TOTAL:</b>", h2_style),
+        Paragraph("<b>GRAND QUOTATION TOTAL:</b>", h2_style),
         Paragraph(f"<b>{currency} {grand_total:,.2f}</b>", h2_style)
     ])
 
     summary_table = Table(summary_rows, colWidths=[360, 160])
     summary_table.setStyle(TableStyle([
         ('ALIGN', (1,0), (1,-1), 'RIGHT'),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
         ('LINEABOVE', (0,-1), (-1,-1), 1, GOLD_ACCENT),
     ]))
     story.append(KeepTogether(summary_table))
 
-    # 5. Terms & Conditions
+    # 6. Terms & Conditions
     terms = quotation_data.get("terms_and_conditions") or company_settings.get("default_terms") or ""
     if terms:
-        story.append(Spacer(1, 12))
+        story.append(Spacer(1, 10))
         terms_cell = [
             Paragraph("<b>TERMS & CONDITIONS</b>", cat_title_style),
-            Spacer(1, 3),
+            Spacer(1, 2),
             Paragraph(terms.replace("\n", "<br/>"), muted_style)
         ]
         terms_table = Table([[terms_cell]], colWidths=[520])
@@ -358,10 +408,26 @@ def generate_quotation_pdf(quotation_data: dict, company_settings: dict) -> byte
             ('BACKGROUND', (0,0), (-1,-1), ROW_BG),
             ('LEFTPADDING', (0,0), (-1,-1), 10),
             ('RIGHTPADDING', (0,0), (-1,-1), 10),
-            ('TOPPADDING', (0,0), (-1,-1), 8),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
         ]))
         story.append(KeepTogether(terms_table))
+
+    # 7. Signature & Authorization Block
+    story.append(Spacer(1, 16))
+    sig_data = [
+        [
+            Paragraph("<b>Client Acceptance:</b><br/><br/><br/>________________________<br/>Signature & Date", muted_style),
+            Paragraph("<b>Authorized Representative:</b><br/><br/><br/>________________________<br/>For Catering Operations", muted_style)
+        ]
+    ]
+    sig_table = Table(sig_data, colWidths=[260, 260])
+    sig_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(KeepTogether(sig_table))
 
     canvas_class = make_canvas_maker(company_settings)
     doc.build(story, canvasmaker=canvas_class)
@@ -416,7 +482,9 @@ def generate_purchase_list_pdf(event_data: dict, purchase_items: list, company_s
 
     story = []
     comp_name = company_settings.get("company_name") or company_settings.get("name") or "Catering Services"
-    currency = company_settings.get("currency_symbol", "₹")
+    currency = company_settings.get("currency_symbol") or "Rs."
+    if currency in ["₹", "INR"]:
+        currency = "Rs."
 
     story.append(Paragraph(f"{comp_name.upper()} - KITCHEN PROCUREMENT & PURCHASE ORDER", title_style))
     story.append(Spacer(1, 4))
@@ -444,7 +512,7 @@ def generate_purchase_list_pdf(event_data: dict, purchase_items: list, company_s
             Paragraph("<b>Required Qty</b>", muted_style),
             Paragraph("<b>Unit Price</b>", muted_style),
             Paragraph("<b>Est. Cost</b>", muted_style),
-            Paragraph("<b>Supplier / Notes</b>", muted_style)
+            Paragraph("<b>Dishes Used In</b>", muted_style)
         ]
     ]
 
@@ -462,7 +530,7 @@ def generate_purchase_list_pdf(event_data: dict, purchase_items: list, company_s
             price = item.get("unit_price", 0)
             cost = item.get("total_price", qty * price)
             total_est += cost
-            supplier = item.get("supplier") or ""
+            dishes_str = ", ".join(item.get("dishes_used_in", [])) or item.get("notes", "")
 
             table_data.append([
                 Paragraph("[  ]", body_style),
@@ -470,10 +538,10 @@ def generate_purchase_list_pdf(event_data: dict, purchase_items: list, company_s
                 Paragraph(f"<b>{qty:,.2f} {unit}</b>", body_style),
                 Paragraph(f"{currency} {price:,.2f}", muted_style),
                 Paragraph(f"{currency} {cost:,.2f}", body_style),
-                Paragraph(supplier, muted_style)
+                Paragraph(dishes_str, muted_style)
             ])
 
-    t = Table(table_data, colWidths=[36, 170, 85, 65, 75, 89])
+    t = Table(table_data, colWidths=[32, 180, 90, 68, 75, 75])
     t.setStyle(TableStyle([
         ('LINEBELOW', (0,0), (-1,0), 1, EMERALD_DARK),
         ('TOPPADDING', (0,0), (-1,-1), 3),

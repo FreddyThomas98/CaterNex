@@ -57,13 +57,25 @@ export const ClientManagement: React.FC<ClientManagementProps> = ({ userRole, on
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Delete this client and associated records?')) return;
+  // Delete Client State
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [isDeletingClient, setIsDeletingClient] = useState(false);
+
+  const confirmDeleteClient = async () => {
+    if (!clientToDelete) return;
+    const targetId = clientToDelete.id;
+    setIsDeletingClient(true);
     try {
-      await api.deleteClient(id);
-      loadClients();
+      setClients(prev => prev.filter(c => c.id !== targetId));
+      setClientToDelete(null);
+      await api.deleteClient(targetId);
+      await loadClients();
     } catch (err: any) {
-      alert(`Error deleting: ${err.message}`);
+      console.error('Error deleting client:', err);
+      alert(`Error deleting client: ${err.message}`);
+      await loadClients();
+    } finally {
+      setIsDeletingClient(false);
     }
   };
 
@@ -99,16 +111,18 @@ export const ClientManagement: React.FC<ClientManagementProps> = ({ userRole, on
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setFormData({ name: '', phone: '', email: '', address: 'Trivandrum', company: '' });
-            setIsModalOpen(true);
-          }}
-          className="btn btn-gold"
-        >
-          <Plus size={16} />
-          Add New Client
-        </button>
+        {userRole !== 'USER' && (
+          <button
+            onClick={() => {
+              setFormData({ name: '', phone: '', email: '', address: 'Trivandrum', company: '' });
+              setIsModalOpen(true);
+            }}
+            className="btn btn-gold"
+          >
+            <Plus size={16} />
+            Add New Client
+          </button>
+        )}
       </div>
 
       {/* Search Bar */}
@@ -212,37 +226,44 @@ export const ClientManagement: React.FC<ClientManagementProps> = ({ userRole, on
                 alignItems: 'center',
                 justifyContent: 'space-between'
               }}>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('new-quotation', { clientId: client.id })}
-                  className="btn btn-gold btn-sm"
-                >
-                  <Sparkles size={13} />
-                  New Proposal
-                </button>
-
-                <div style={{ display: 'flex', gap: '0.35rem' }}>
-                  <button
-                    onClick={() => {
-                      setFormData(client);
-                      setIsModalOpen(true);
-                    }}
-                    className="btn btn-outline btn-sm"
-                    title="Edit client"
-                  >
-                    <Edit3 size={13} />
-                  </button>
-                  {userRole === 'ADMIN' && (
+                {userRole !== 'USER' ? (
+                  <>
                     <button
-                      onClick={() => handleDelete(client.id)}
-                      className="btn btn-outline btn-sm"
-                      style={{ color: '#B91C1C' }}
-                      title="Delete"
+                      type="button"
+                      onClick={() => onNavigate('new-quotation', { clientId: client.id })}
+                      className="btn btn-gold btn-sm"
                     >
-                      <Trash2 size={13} />
+                      <Sparkles size={13} />
+                      New Proposal
                     </button>
-                  )}
-                </div>
+
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <button
+                        onClick={() => {
+                          setFormData(client);
+                          setIsModalOpen(true);
+                        }}
+                        className="btn btn-outline btn-sm"
+                        title="Edit client"
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setClientToDelete(client)}
+                        className="btn btn-outline btn-sm"
+                        style={{ color: '#B91C1C', borderColor: '#FECACA' }}
+                        title="Delete client"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    View-Only Profile
+                  </span>
+                )}
               </div>
             </div>
           ))
@@ -310,6 +331,80 @@ export const ClientManagement: React.FC<ClientManagementProps> = ({ userRole, on
                   Save Client
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Client Confirmation Modal */}
+      {clientToDelete && (
+        <div
+          className="modal-backdrop"
+          onClick={() => !isDeletingClient && setClientToDelete(null)}
+          style={{ zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '420px', width: '90%', padding: '2rem', textAlign: 'center', borderRadius: 'var(--radius-xl)' }}
+          >
+            <div style={{
+              width: '54px',
+              height: '54px',
+              borderRadius: '50%',
+              backgroundColor: '#FEE2E2',
+              color: '#DC2626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+              boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)'
+            }}>
+              <Trash2 size={24} />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+              Delete Client?
+            </h3>
+
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+              Are you sure you want to delete client <strong style={{ color: 'var(--text-primary)' }}>{clientToDelete.name}</strong>?
+              <br />
+              <span style={{ color: '#B91C1C', fontSize: '0.8rem', fontWeight: 600 }}>This will also remove any associated quotations and bookings.</span>
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setClientToDelete(null)}
+                className="btn btn-outline"
+                disabled={isDeletingClient}
+                style={{ flex: 1, padding: '0.65rem', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDeleteClient}
+                className="btn"
+                disabled={isDeletingClient}
+                style={{
+                  flex: 1,
+                  padding: '0.65rem',
+                  backgroundColor: '#DC2626',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  cursor: isDeletingClient ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isDeletingClient ? 'Deleting...' : 'Yes, Delete'}
+              </button>
             </div>
           </div>
         </div>

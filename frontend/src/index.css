@@ -1,43 +1,52 @@
 :root {
-  --bg-canvas: #FAF7F2;
+  --bg-canvas: #F8FAFC;
   --bg-card: #FFFFFF;
-  --bg-card-hover: #FCFBF9;
-  --bg-surface-elevated: #FDFBF7;
-  --bg-parchment: #F5EFEB;
-  --bg-parchment-border: #E8DECE;
+  --bg-card-hover: #F8FAFC;
+  --bg-surface-elevated: #FFFFFF;
+  --bg-parchment: #F1F5F9;
+  --bg-parchment-border: #E2E8F0;
   
-  --brand-emerald: #0E3321;
-  --brand-emerald-dark: #071E13;
-  --brand-emerald-hover: #164E32;
-  --brand-emerald-light: #EBF3EE;
+  --brand-navy: #0A192F;
+  --brand-navy-dark: #060D1A;
+  --brand-navy-hover: #112A4F;
+  --brand-navy-light: #F0F7FF;
+
+  /* Royal Navy tokens (aliased to preserve clean compatibility) */
+  --brand-emerald: #0A192F;
+  --brand-emerald-dark: #060D1A;
+  --brand-emerald-hover: #112A4F;
+  --brand-emerald-light: #F0F7FF;
   
-  --brand-gold: #B9924B;
-  --brand-gold-hover: #A37D39;
-  --brand-gold-light: #FAF3E3;
-  --brand-gold-border: rgba(185, 146, 75, 0.35);
-  --brand-gold-glow: rgba(185, 146, 75, 0.2);
+  --brand-gold: #C5A059;
+  --brand-gold-hover: #B08C45;
+  --brand-gold-light: #FDF9EE;
+  --brand-gold-border: rgba(197, 160, 89, 0.4);
+  --brand-gold-glow: rgba(197, 160, 89, 0.25);
+
+  --brand-platinum: #E2E8F0;
+  --brand-silver: #94A3B8;
 
   --accent-amber: #D97706;
   --accent-amber-light: #FEF3C7;
-  --accent-red: #B91C1C;
+  --accent-red: #DC2626;
   --accent-red-light: #FEE2E2;
-  --accent-blue: #1D4ED8;
+  --accent-blue: #2563EB;
   --accent-blue-light: #EFF6FF;
   
-  --text-main: #1A241E;
-  --text-secondary: #485A50;
-  --text-muted: #6B7C72;
-  --text-light: #9CA8A0;
+  --text-main: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --text-light: #94A3B8;
   
-  --border-subtle: rgba(14, 51, 33, 0.08);
-  --border-medium: rgba(14, 51, 33, 0.15);
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-medium: rgba(15, 23, 42, 0.16);
   
-  --shadow-sm: 0 2px 6px rgba(14, 51, 33, 0.04);
-  --shadow-md: 0 8px 24px rgba(14, 51, 33, 0.08);
-  --shadow-lg: 0 16px 40px rgba(14, 51, 33, 0.12);
-  --shadow-gold: 0 6px 20px rgba(185, 146, 75, 0.22);
+  --shadow-sm: 0 1px 4px rgba(10, 25, 47, 0.05);
+  --shadow-md: 0 6px 20px rgba(10, 25, 47, 0.08);
+  --shadow-lg: 0 16px 36px rgba(10, 25, 47, 0.12);
+  --shadow-gold: 0 6px 20px rgba(197, 160, 89, 0.25);
 
-  --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  --font-serif: 'Outfit', 'Plus Jakarta Sans', sans-serif;
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
   --radius-sm: 6px;
@@ -251,9 +260,9 @@ h1, h2, h3, .font-serif {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(7, 30, 19, 0.65);
-  backdrop-filter: blur(4px);
-  z-index: 1000;
+  background: rgba(10, 25, 47, 0.75);
+  backdrop-filter: blur(5px);
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -261,15 +270,47 @@ h1, h2, h3, .font-serif {
   animation: fadeIn 0.2s ease;
 }
 
-.modal-content {
-  background: var(--bg-card);
+.modal-content, .modal-card {
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
+  color: var(--text-main) !important;
   border-radius: var(--radius-xl);
-  border: 1px solid var(--brand-gold-border);
-  box-shadow: var(--shadow-lg);
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.05);
   max-height: 90vh;
   overflow-y: auto;
   width: 100%;
   animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Form Controls & Inputs */
+.form-control {
+  width: 100%;
+  padding: 0.625rem 0.85rem;
+  font-size: 0.875rem;
+  font-family: var(--font-sans);
+  color: var(--text-main);
+  background-color: #FFFFFF;
+  border: 1.5px solid #CBD5E1;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.form-control:focus {
+  border-color: var(--brand-emerald);
+  box-shadow: 0 0 0 3px rgba(10, 25, 47, 0.1);
+}
+
+select.form-control {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.25rem;
+  appearance: none;
 }
 
 @keyframes fadeIn {

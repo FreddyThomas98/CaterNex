@@ -6,8 +6,10 @@ import {
   Calendar,
   Users,
   UtensilsCrossed,
+  Carrot,
   Calculator,
   ShoppingCart,
+  Layers,
   Crown
 } from 'lucide-react';
 
@@ -28,15 +30,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
 
+  const isStaffUser = userRole === 'USER';
+
   const navItems = [
-    ...(isSuperAdmin ? [{ id: 'super-admin', label: 'Catering Clients', icon: Crown, superAdminOnly: true }] : []),
-    { id: 'new-quotation', label: 'New Quotation', icon: Sparkles, primary: true },
+    ...(!isStaffUser ? [{ id: 'new-quotation', label: 'New Quotation', icon: Sparkles, primary: true }] : []),
     { id: 'quotations', label: 'All Quotations', icon: FileText },
     { id: 'events', label: 'Events & Calendar', icon: Calendar },
-    { id: 'procurement', label: 'Purchase Lists', icon: ShoppingCart },
     { id: 'clients', label: 'Clients', icon: Users },
     { id: 'menu', label: 'Menu & Recipes', icon: UtensilsCrossed },
-    { id: 'costing', label: 'Costing & Margins', icon: Calculator }
+    { id: 'ingredients', label: 'Raw Ingredients', icon: Carrot },
+    { id: 'cutlery', label: 'Cutlery & Tableware', icon: Layers },
+    ...(!isStaffUser ? [{ id: 'costing', label: 'Costing & Margins', icon: Calculator }] : [])
   ];
 
   const logoSrc = activeTenant?.logo_path || '/images/default-catering-logo.png';
@@ -47,12 +51,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside style={{
       width: '240px',
-      backgroundColor: '#0A2518',
-      color: '#EAF2EC',
+      backgroundColor: '#0A192F',
+      color: '#F1F5F9',
       display: isOpen ? 'flex' : 'none',
       flexDirection: 'column',
       flexShrink: 0,
-      borderRight: '1px solid rgba(185, 146, 75, 0.25)',
+      borderRight: '1px solid rgba(226, 232, 240, 0.12)',
       position: 'sticky',
       top: 0,
       height: '100vh'
@@ -184,12 +188,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
         borderTop: '1px solid rgba(185, 146, 75, 0.15)',
         fontSize: '0.6875rem',
         color: '#6F8A7D',
-        textAlign: 'center',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis'
+        textAlign: 'center'
       }}>
-        {locationText}
+        {isStaffUser ? (
+          <div style={{
+            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+            color: '#93C5FD',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '6px',
+            padding: '0.3rem 0.5rem',
+            fontWeight: 700,
+            marginBottom: '0.4rem'
+          }}>
+            Staff User • View Only
+          </div>
+        ) : (
+          <div style={{
+            backgroundColor: 'rgba(34, 197, 94, 0.15)',
+            color: '#86EFAC',
+            border: '1px solid rgba(34, 197, 94, 0.3)',
+            borderRadius: '6px',
+            padding: '0.3rem 0.5rem',
+            fontWeight: 700,
+            marginBottom: '0.4rem'
+          }}>
+            Business Admin • Full Access
+          </div>
+        )}
+        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {locationText}
+        </div>
       </div>
     </aside>
   );

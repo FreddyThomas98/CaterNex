@@ -77,12 +77,13 @@ export const PurchaseListModal: React.FC<PurchaseListModalProps> = ({
   };
 
   const handleDownloadPdf = () => {
-    if (!eventId) {
+    if (eventId) {
+      window.open(api.getPurchaseListPdfUrl(eventId), '_blank');
+    } else if (quotationId) {
+      window.open(api.getQuotationPurchaseListPdfUrl(quotationId), '_blank');
+    } else {
       window.print();
-      return;
     }
-    const url = api.getPurchaseListPdfUrl(eventId);
-    window.open(url, '_blank');
   };
 
   // Filter items
@@ -107,13 +108,13 @@ export const PurchaseListModal: React.FC<PurchaseListModalProps> = ({
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(10, 30, 20, 0.75)',
+      backgroundColor: 'rgba(10, 25, 47, 0.78)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 1100,
       padding: '1.5rem',
-      backdropFilter: 'blur(3px)'
+      backdropFilter: 'blur(4px)'
     }}>
       <div style={{
         backgroundColor: '#FFFFFF',
@@ -125,24 +126,24 @@ export const PurchaseListModal: React.FC<PurchaseListModalProps> = ({
         flexDirection: 'column',
         boxShadow: 'var(--shadow-xl)',
         overflow: 'hidden',
-        border: '1.5px solid var(--brand-gold-border)'
+        border: '1px solid var(--border-medium)'
       }}>
         {/* Header */}
         <div style={{
           padding: '1.25rem 2rem',
-          backgroundColor: '#0A2518',
+          backgroundColor: '#0A192F',
           color: '#FFFFFF',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderBottom: '1px solid rgba(185, 146, 75, 0.3)'
+          borderBottom: '1px solid rgba(197, 160, 89, 0.3)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div style={{
               width: '44px',
               height: '44px',
               borderRadius: '50%',
-              backgroundColor: 'rgba(185, 146, 75, 0.2)',
+              backgroundColor: 'rgba(197, 160, 89, 0.2)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -151,11 +152,12 @@ export const PurchaseListModal: React.FC<PurchaseListModalProps> = ({
               <ShoppingCart size={24} />
             </div>
             <div>
-              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.35rem', color: '#FAF3E3', lineHeight: 1.2 }}>
-                Event Raw Material Purchase & Procurement List
+              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.35rem', color: '#F8FAFC', lineHeight: 1.2 }}>
+                {quotationId ? `Quotation Raw Material Procurement List` : `Event Raw Material Procurement List`}
               </h2>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--brand-gold)', display: 'flex', gap: '0.75rem', marginTop: '0.2rem' }}>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--brand-gold)', display: 'flex', gap: '0.75rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
                 <span>Headcount: <b>{data?.guest_count || 500} Servings</b></span>
+                {data?.quotation?.quotation_number && <span>• Ref: <b>{data.quotation.quotation_number}</b></span>}
                 {data?.event?.event_type && <span>• Occasion: <b>{data.event.event_type}</b></span>}
                 {data?.event?.event_date && <span>• Date: <b>{data.event.event_date}</b></span>}
                 {data?.event?.venue && <span>• Venue: <b>{data.event.venue}</b></span>}
@@ -320,12 +322,11 @@ export const PurchaseListModal: React.FC<PurchaseListModalProps> = ({
                 <thead>
                   <tr>
                     <th style={{ width: '45px', textAlign: 'center' }}>Done</th>
-                    <th style={{ width: '28%' }}>Raw Material / Ingredient</th>
-                    <th style={{ width: '16%' }}>Category</th>
+                    <th style={{ width: '36%' }}>Raw Material / Ingredient</th>
+                    <th style={{ width: '18%' }}>Category</th>
                     <th style={{ width: '18%' }}>Required Quantity</th>
-                    <th style={{ width: '12%', textAlign: 'right' }}>Est. Rate</th>
+                    <th style={{ width: '14%', textAlign: 'right' }}>Est. Rate</th>
                     <th style={{ width: '14%', textAlign: 'right' }}>Total Cost</th>
-                    <th style={{ width: '12%' }}>Supplier</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -381,11 +382,6 @@ export const PurchaseListModal: React.FC<PurchaseListModalProps> = ({
                         </td>
                         <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.875rem', color: 'var(--brand-emerald)' }}>
                           ₹{item.total_price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            {item.supplier || 'Local Market'}
-                          </span>
                         </td>
                       </tr>
                     );

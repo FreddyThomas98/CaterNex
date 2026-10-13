@@ -1,7 +1,8 @@
 import {
   User, Category, MenuItem, Package, Addon, Client, CateringEvent,
   Quotation, CompanySettings, CostingOverview, Ingredient, LabourType,
-  PackagingItem, OverheadRule, DashboardData, Tenant, Recipe, EventPurchaseList
+  PackagingItem, OverheadRule, DashboardData, Tenant, Recipe, EventPurchaseList,
+  CutleryMasterItem
 } from '../types';
 
 const API_BASE = '/api';
@@ -60,8 +61,18 @@ export const api = {
   getTenant: (id: number) => request<Tenant>(`/tenants/${id}`),
   updateTenant: (id: number, payload: any) =>
     request<Tenant>(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteTenant: (id: number) =>
+    request<{ status: string; id: number; name: string }>(`/tenants/${id}`, { method: 'DELETE' }),
   createTenantAdmin: (id: number, payload: any) =>
     request<any>(`/tenants/${id}/admin-user`, { method: 'POST', body: JSON.stringify(payload) }),
+  getTenantUsers: (tenantId: number) =>
+    request<User[]>(`/tenants/${tenantId}/users`),
+  createTenantUser: (tenantId: number, payload: { full_name: string; email: string; password: string; role: string }) =>
+    request<User>(`/tenants/${tenantId}/users`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateTenantUser: (tenantId: number, userId: number, payload: { full_name?: string; email?: string; password?: string; role?: string; is_active?: number }) =>
+    request<User>(`/tenants/${tenantId}/users/${userId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteTenantUser: (tenantId: number, userId: number) =>
+    request<{ status: string; id: number }>(`/tenants/${tenantId}/users/${userId}`, { method: 'DELETE' }),
 
   // Settings
   getSettings: () => request<CompanySettings>('/settings'),
@@ -72,13 +83,22 @@ export const api = {
     }),
 
   // Categories
-  getCategories: () => request<Category[]>('/categories'),
+  getCategories: (hideEmpty?: boolean) => request<Category[]>(`/categories${hideEmpty ? '?hide_empty=true' : ''}`),
   createCategory: (cat: Partial<Category>) =>
     request<Category>('/categories', { method: 'POST', body: JSON.stringify(cat) }),
   updateCategory: (id: number, cat: Partial<Category>) =>
     request<Category>(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(cat) }),
   deleteCategory: (id: number) =>
     request<{ success: boolean }>(`/categories/${id}`, { method: 'DELETE' }),
+
+  // Cutlery Master
+  getCutleryMaster: () => request<CutleryMasterItem[]>('/cutlery-master'),
+  createCutleryMasterItem: (data: Partial<CutleryMasterItem>) =>
+    request<CutleryMasterItem>('/cutlery-master', { method: 'POST', body: JSON.stringify(data) }),
+  updateCutleryMasterItem: (id: number, data: Partial<CutleryMasterItem>) =>
+    request<CutleryMasterItem>(`/cutlery-master/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCutleryMasterItem: (id: number) =>
+    request<{ success: boolean }>(`/cutlery-master/${id}`, { method: 'DELETE' }),
 
   // Menu Items
   getMenuItems: (params?: { category_id?: number; search?: string; service_type?: string; active_only?: boolean }) => {
@@ -228,6 +248,28 @@ export const api = {
     }),
   getPurchaseListPdfUrl: (eventId: number) =>
     `/api/events/${eventId}/purchase-list/pdf`,
+  getQuotationPurchaseListPdfUrl: (quotationId: number) =>
+    `/api/quotations/${quotationId}/purchase-list/pdf`,
+  downloadQuotationPdf: async (quotationId: number, filename?: string) => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const response = await fetch(`/api/quotations/${quotationId}/pdf`, { headers });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `Quotation-${quotationId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      window.open(`/api/quotations/${quotationId}/pdf`, '_blank');
+    }
+  },
 
   // Costing Engine
   getCostingOverview: () => request<CostingOverview>('/costing/overview'),

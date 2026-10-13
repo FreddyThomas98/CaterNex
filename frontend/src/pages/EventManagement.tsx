@@ -10,6 +10,7 @@ interface EventManagementProps {
 }
 
 export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNavigate }) => {
+  const isReadOnly = userRole === 'USER';
   const [confirmedEvents, setConfirmedEvents] = useState<CateringEvent[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,13 +74,25 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
     }
   };
 
-  const handleDeleteEvent = async (id: number) => {
-    if (!window.confirm('Are you sure you want to remove this confirmed booking from the calendar?')) return;
+  // Delete Event State
+  const [eventToDelete, setEventToDelete] = useState<CateringEvent | null>(null);
+  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
+
+  const confirmDeleteEvent = async () => {
+    if (!eventToDelete) return;
+    const targetId = eventToDelete.id;
+    setIsDeletingEvent(true);
     try {
-      await api.deleteEvent(id);
-      loadData();
+      setConfirmedEvents(prev => prev.filter(e => e.id !== targetId));
+      setEventToDelete(null);
+      await api.deleteEvent(targetId);
+      await loadData();
     } catch (err: any) {
+      console.error('Error removing booking:', err);
       alert(`Error removing booking: ${err.message}`);
+      await loadData();
+    } finally {
+      setIsDeletingEvent(false);
     }
   };
 
@@ -112,9 +125,11 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
 
   // Map events to date strings "YYYY-MM-DD"
   const eventsByDate = confirmedEvents.reduce<Record<string, CateringEvent[]>>((acc, ev) => {
-    const d = ev.event_date;
-    if (!acc[d]) acc[d] = [];
-    acc[d].push(ev);
+    const d = ev.event_date ? ev.event_date.slice(0, 10) : '';
+    if (d) {
+      if (!acc[d]) acc[d] = [];
+      acc[d].push(ev);
+    }
     return acc;
   }, {});
 
@@ -152,18 +167,20 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            if (clients.length > 0) {
-              setNewEvent(prev => ({ ...prev, client_id: clients[0].id }));
-            }
-            setIsModalOpen(true);
-          }}
-          className="btn btn-gold btn-sm"
-        >
-          <Plus size={15} />
-          Schedule Confirmed Order
-        </button>
+        {userRole !== 'USER' && (
+          <button
+            onClick={() => {
+              if (clients.length > 0) {
+                setNewEvent(prev => ({ ...prev, client_id: clients[0].id }));
+              }
+              setIsModalOpen(true);
+            }}
+            className="btn btn-gold btn-sm"
+          >
+            <Plus size={15} />
+            Schedule Confirmed Order
+          </button>
+        )}
       </div>
 
       {/* Main Two-Column Layout: Calendar Grid + Agenda */}
@@ -434,17 +451,26 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
                       <ShoppingCart size={12} />
                       <span>Purchase List</span>
                     </button>
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => setEventToDelete(ev)}
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: '0.75rem', color: '#B91C1C', borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}
+                        title="Remove from Calendar"
+                      >
+                        <Trash2 size={12} />
+                        Remove
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleDeleteEvent(ev.id)}
-                      className="btn btn-outline btn-sm"
-                      style={{ fontSize: '0.75rem', color: '#B91C1C', borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}
-                      title="Remove from Calendar"
-                    >
-                      <Trash2 size={12} />
-                      Remove
-                    </button>
-                    <button
-                      onClick={() => onNavigate('new-quotation', { clientId: ev.client_id, eventId: ev.id })}
+                      onClick={() => {
+                        if (isReadOnly) {
+                          onNavigate('quotations');
+                        } else {
+                          onNavigate('new-quotation', { clientId: ev.client_id, eventId: ev.id });
+                        }
+                      }}
                       className="btn btn-outline btn-sm"
                       style={{ fontSize: '0.75rem' }}
                     >
@@ -588,6 +614,78 @@ export const EventManagement: React.FC<EventManagementProps> = ({ userRole, onNa
           eventId={selectedPurchaseEventId}
           onClose={() => setSelectedPurchaseEventId(null)}
         />
+      )}
+
+      {/* Delete Event Confirmation Modal */}
+      {eventToDelete && (
+        <div
+          className="modal-backdrop"
+          onClick={() => !isDeletingEvent && setEventToDelete(null)}
+          style={{ zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '420px', width: '90%', padding: '2rem', textAlign: 'center', borderRadius: 'var(--radius-xl)' }}
+          >
+            <div style={{
+              width: '54px',
+              height: '54px',
+              borderRadius: '50%',
+              backgroundColor: '#FEE2E2',
+              color: '#DC2626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+              boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)'
+            }}>
+              <Trash2 size={24} />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+              Remove from Calendar?
+            </h3>
+
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+              Are you sure you want to remove <strong>{eventToDelete.event_type}</strong> on <strong>{eventToDelete.event_date}</strong> from the calendar?
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setEventToDelete(null)}
+                className="btn btn-outline"
+                disabled={isDeletingEvent}
+                style={{ flex: 1, padding: '0.65rem', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDeleteEvent}
+                className="btn"
+                disabled={isDeletingEvent}
+                style={{
+                  flex: 1,
+                  padding: '0.65rem',
+                  backgroundColor: '#DC2626',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  cursor: isDeletingEvent ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isDeletingEvent ? 'Removing...' : 'Yes, Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

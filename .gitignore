@@ -17,6 +17,8 @@ test_*.pdf
 verify_*.pdf
 verify_*.png
 test_*.png
+test_*.py
+*.log
 scratch/
 .env
 .DS_Store

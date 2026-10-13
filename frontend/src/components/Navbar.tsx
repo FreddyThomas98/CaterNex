@@ -1,13 +1,11 @@
 import React from 'react';
 import { User, Tenant } from '../types';
-import { LogOut, ShieldCheck, Crown, Building2, ChevronDown } from 'lucide-react';
+import { LogOut, ShieldCheck, Eye, Sparkles } from 'lucide-react';
 
 interface NavbarProps {
   currentUser: User | null;
   activeTenant: Tenant | null;
   allTenants?: Tenant[];
-  onSelectTenant?: (tenant: Tenant) => void;
-  onNavigate?: (view: string) => void;
   onLogout: () => void;
   toggleSidebar?: () => void;
 }
@@ -15,12 +13,10 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   activeTenant,
-  allTenants = [],
-  onSelectTenant,
-  onNavigate,
   onLogout
 }) => {
-  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const isStaffUser = currentUser?.role === 'USER';
 
   return (
     <header style={{
@@ -53,70 +49,21 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-        {/* Super Admin Tenant Switcher */}
-        {isSuperAdmin && allTenants.length > 0 && onSelectTenant && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Viewing Tenant:
-            </span>
-            <select
-              value={activeTenant?.id || ''}
-              onChange={(e) => {
-                const selected = allTenants.find(t => t.id === Number(e.target.value));
-                if (selected) onSelectTenant(selected);
-              }}
-              style={{
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                color: 'var(--brand-emerald)',
-                backgroundColor: 'var(--bg-parchment)',
-                border: '1.5px solid var(--brand-gold)',
-                borderRadius: 'var(--radius-md)',
-                padding: '0.3rem 0.6rem',
-                cursor: 'pointer'
-              }}
-            >
-              {allTenants.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Super Admin Hub Button */}
-        {isSuperAdmin && onNavigate && (
-          <button
-            onClick={() => onNavigate('super-admin')}
-            className="btn btn-outline btn-sm"
-            style={{
-              fontSize: '0.75rem',
-              gap: '0.35rem',
-              color: 'var(--brand-gold)',
-              borderColor: 'var(--brand-gold)',
-              backgroundColor: 'rgba(185, 146, 75, 0.08)'
-            }}
-          >
-            <Crown size={14} />
-            <span>Super Admin Hub</span>
-          </button>
-        )}
-
-        {/* Administrator Badge */}
+        {/* Role Badge */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '0.35rem',
-          backgroundColor: isSuperAdmin ? 'rgba(185, 146, 75, 0.15)' : 'rgba(14, 51, 33, 0.08)',
-          color: isSuperAdmin ? 'var(--brand-gold)' : 'var(--brand-emerald)',
+          backgroundColor: isAdmin ? 'rgba(22, 101, 52, 0.1)' : 'rgba(37, 99, 235, 0.1)',
+          color: isAdmin ? '#15803D' : '#1D4ED8',
+          border: `1px solid ${isAdmin ? 'rgba(22, 101, 52, 0.25)' : 'rgba(37, 99, 235, 0.25)'}`,
           padding: '0.25rem 0.65rem',
           borderRadius: 'var(--radius-full)',
           fontSize: '0.75rem',
           fontWeight: 700
         }}>
-          {isSuperAdmin ? <Crown size={13} /> : <ShieldCheck size={14} />}
-          <span>{isSuperAdmin ? 'Super User' : (currentUser?.role || 'Admin')}</span>
+          {isAdmin ? <ShieldCheck size={14} /> : <Eye size={14} />}
+          <span>{isAdmin ? 'Admin (Full Edit Access)' : 'Staff User (View Only)'}</span>
         </div>
 
         {currentUser && (

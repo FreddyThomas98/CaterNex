@@ -1,4 +1,4 @@
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'SALESPERSON' | 'KITCHEN' | 'ACCOUNTS';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'USER' | 'MANAGER' | 'SALESPERSON' | 'KITCHEN' | 'ACCOUNTS';
 
 export interface Tenant {
   id: number;
@@ -22,6 +22,9 @@ export interface Tenant {
   item_count?: number;
   quotation_count?: number;
   event_count?: number;
+  user_count?: number;
+  admin_count?: number;
+  staff_count?: number;
   admin_email?: string;
 }
 
@@ -143,6 +146,29 @@ export interface QuotationAddon {
   line_total: number;
 }
 
+export interface CutleryItem {
+  id?: number;
+  quotation_id?: number;
+  cutlery_name: string;
+  category: string;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  is_included: number; // 1 = included in package, 0 = extra charge
+  notes?: string;
+}
+
+export interface CutleryMasterItem {
+  id: number;
+  tenant_id: number;
+  name: string;
+  category: string;
+  calculation_type: 'PER_GUEST' | 'FIXED';
+  default_ratio: number;
+  default_unit_cost: number;
+  is_active: number;
+}
+
 export type QuotationStatus = 'DRAFT' | 'SENT' | 'UNDER_REVIEW' | 'APPROVED' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED';
 
 export interface Quotation {
@@ -176,6 +202,7 @@ export interface Quotation {
   updated_at?: string;
   items?: QuotationItem[];
   addons?: QuotationAddon[];
+  cutlery?: CutleryItem[];
   client?: Client;
   event?: CateringEvent;
 }

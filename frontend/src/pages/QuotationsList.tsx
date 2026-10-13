@@ -3,7 +3,7 @@ import { Quotation, UserRole } from '../types';
 import { api } from '../services/api';
 import { QuotationReviewModal } from '../components/QuotationReviewModal';
 import { PurchaseListModal } from '../components/PurchaseListModal';
-import { Search, Plus, Download, Eye, Trash2, Edit3, ShoppingCart } from 'lucide-react';
+import { Search, Plus, Download, Eye, Trash2, Edit3, ShoppingCart, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface QuotationsListProps {
   userRole: UserRole;
@@ -19,6 +19,11 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [selectedPurchaseQuoteId, setSelectedPurchaseQuoteId] = useState<number | null>(null);
+
+  const [quotationToDelete, setQuotationToDelete] = useState<Quotation | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteSuccess, setDeleteSuccess] = useState('');
 
   const loadQuotations = async () => {
     try {
@@ -48,13 +53,24 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Delete this quotation?')) return;
+  const confirmDeleteQuotation = async () => {
+    if (!quotationToDelete) return;
+    const targetId = quotationToDelete.id;
+    const targetNum = quotationToDelete.quotation_number;
+    setIsDeleting(true);
+    setDeleteError('');
     try {
-      await api.deleteQuotation(id);
+      await api.deleteQuotation(targetId);
+      setQuotations(prev => prev.filter(q => q.id !== targetId));
+      setQuotationToDelete(null);
+      setDeleteSuccess(`Quotation ${targetNum} has been permanently deleted.`);
+      setTimeout(() => setDeleteSuccess(''), 4000);
       loadQuotations();
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      console.error('Delete quotation error:', err);
+      setDeleteError(err.message || 'Failed to delete quotation');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -88,14 +104,35 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
           </p>
         </div>
 
-        <button
-          onClick={() => onNavigate('new-quotation')}
-          className="btn btn-gold btn-sm"
-        >
-          <Plus size={15} />
-          New Quotation
-        </button>
+        {userRole !== 'USER' && (
+          <button
+            onClick={() => onNavigate('new-quotation')}
+            className="btn btn-gold btn-sm"
+          >
+            <Plus size={15} />
+            New Quotation
+          </button>
+        )}
       </div>
+
+      {deleteSuccess && (
+        <div style={{
+          padding: '0.75rem 1rem',
+          backgroundColor: '#ECFDF5',
+          border: '1px solid #A7F3D0',
+          borderRadius: 'var(--radius-md)',
+          color: '#065F46',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          marginBottom: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <CheckCircle2 size={16} color="#059669" />
+          <span>{deleteSuccess}</span>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div style={{
@@ -202,33 +239,40 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
                     </span>
                   </td>
                   <td>
-                    <select
-                      value={q.status}
-                      onChange={(e) => handleStatusChange(q.id, e.target.value)}
-                      style={{
-                        padding: '0.2rem 0.4rem',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        border: '1px solid var(--border-medium)',
-                        backgroundColor: 'var(--bg-parchment)',
-                        outline: 'none'
-                      }}
-                    >
-                      <option value="DRAFT">DRAFT</option>
-                      <option value="SENT">SENT</option>
-                      <option value="CONFIRMED">CONFIRMED</option>
-                    </select>
+                    {userRole === 'USER' ? (
+                      <span className={`badge ${q.status === 'CONFIRMED' ? 'badge-emerald' : q.status === 'SENT' ? 'badge-gold' : 'badge-neutral'}`} style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                        {q.status}
+                      </span>
+                    ) : (
+                      <select
+                        value={q.status}
+                        onChange={(e) => handleStatusChange(q.id, e.target.value)}
+                        style={{
+                          padding: '0.2rem 0.4rem',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          border: '1px solid var(--border-medium)',
+                          backgroundColor: 'var(--bg-parchment)',
+                          outline: 'none'
+                        }}
+                      >
+                        <option value="DRAFT">DRAFT</option>
+                        <option value="SENT">SENT</option>
+                        <option value="CONFIRMED">CONFIRMED</option>
+                      </select>
+                    )}
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
                       <button
                         onClick={() => setSelectedPurchaseQuoteId(q.id)}
                         className="btn btn-outline btn-sm"
-                        style={{ color: '#166534', borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' }}
-                        title="Calculate & View Raw Material Purchase List"
+                        style={{ color: '#0A192F', borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', fontWeight: 600, fontSize: '0.75rem', gap: '0.35rem', display: 'inline-flex', alignItems: 'center' }}
+                        title="View scaled raw material procurement list for this quotation"
                       >
-                        <ShoppingCart size={13} />
+                        <ShoppingCart size={13} color="var(--brand-gold)" />
+                        <span>Purchase List</span>
                       </button>
 
                       <button
@@ -239,32 +283,41 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
                         <Eye size={13} />
                       </button>
 
-                      <button
-                        onClick={() => onNavigate('new-quotation', { quotationId: q.id })}
-                        className="btn btn-outline btn-sm"
-                        style={{ color: 'var(--brand-emerald)', borderColor: 'var(--brand-gold-border)' }}
-                        title="Edit Proposal"
-                      >
-                        <Edit3 size={13} color="var(--brand-gold)" />
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Edit</span>
-                      </button>
+                      {userRole !== 'USER' && (
+                        <button
+                          onClick={() => onNavigate('new-quotation', { quotationId: q.id })}
+                          className="btn btn-outline btn-sm"
+                          style={{ color: 'var(--brand-emerald)', borderColor: 'var(--brand-gold-border)' }}
+                          title="Edit Proposal"
+                        >
+                          <Edit3 size={13} color="var(--brand-gold)" />
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Edit</span>
+                        </button>
+                      )}
 
-                      <a
-                        href={`/api/quotations/${q.id}/pdf`}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          api.downloadQuotationPdf(q.id, `${q.quotation_number}.pdf`);
+                        }}
                         className="btn btn-gold btn-sm"
                         title="Download PDF"
                       >
                         <Download size={13} />
-                      </a>
+                      </button>
 
-                      {userRole === 'ADMIN' && (
+                      {userRole !== 'USER' && (
                         <button
-                          onClick={() => handleDelete(q.id)}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQuotationToDelete(q);
+                            setDeleteError('');
+                          }}
                           className="btn btn-outline btn-sm"
-                          style={{ color: '#B91C1C' }}
-                          title="Delete"
+                          style={{ color: '#B91C1C', borderColor: '#FECACA' }}
+                          title="Delete Proposal"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -277,6 +330,110 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
           </tbody>
         </table>
       </div>
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {quotationToDelete && (
+        <div
+          className="modal-backdrop"
+          onClick={() => !isDeleting && setQuotationToDelete(null)}
+          style={{ zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', width: '90%', padding: '2rem', textAlign: 'center', borderRadius: 'var(--radius-xl)' }}
+          >
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              backgroundColor: '#FEE2E2',
+              color: '#DC2626',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+              boxShadow: '0 4px 12px rgba(220, 38, 38, 0.15)'
+            }}>
+              <Trash2 size={26} />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+              Delete Quotation?
+            </h3>
+
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+              Are you sure you want to delete proposal <strong style={{ color: 'var(--text-primary)' }}>{quotationToDelete.quotation_number}</strong>
+              {quotationToDelete.client_name ? ` for ${quotationToDelete.client_name}` : ''}?
+              <br />
+              <span style={{ color: '#B91C1C', fontSize: '0.8rem', fontWeight: 600 }}>This will permanently remove this quotation and cannot be undone.</span>
+            </p>
+
+            {deleteError && (
+              <div style={{
+                padding: '0.65rem 0.85rem',
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #FCA5A5',
+                borderRadius: 'var(--radius-md)',
+                color: '#991B1B',
+                fontSize: '0.8125rem',
+                marginBottom: '1.25rem',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem'
+              }}>
+                <AlertCircle size={15} />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => { setQuotationToDelete(null); setDeleteError(''); }}
+                className="btn btn-outline"
+                disabled={isDeleting}
+                style={{ flex: 1, padding: '0.65rem', fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmDeleteQuotation}
+                className="btn"
+                disabled={isDeleting}
+                style={{
+                  flex: 1,
+                  padding: '0.65rem',
+                  backgroundColor: '#DC2626',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={15} />
+                    Yes, Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PROPOSAL MODAL */}
       {selectedQuotation && (
@@ -311,10 +468,11 @@ export const QuotationsList: React.FC<QuotationsListProps> = ({ userRole, onNavi
             quantity: i.quantity
           })) : []}
           selectedAddons={[]}
+          cutlery={selectedQuotation.cutlery || []}
           discountType={selectedQuotation.discount_type || 'PERCENTAGE'}
           discountValue={selectedQuotation.discount_value || 0}
           taxPercentage={selectedQuotation.tax_percentage || 5.0}
-          onDownloadPdf={() => window.open(`/api/quotations/${selectedQuotation.id}/pdf`, '_blank')}
+          onDownloadPdf={() => api.downloadQuotationPdf(selectedQuotation.id, `${selectedQuotation.quotation_number}.pdf`)}
           onEdit={() => {
             setIsReviewOpen(false);
             onNavigate('new-quotation', { quotationId: selectedQuotation.id });

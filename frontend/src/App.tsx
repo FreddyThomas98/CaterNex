@@ -10,6 +10,7 @@ import { ClientManagement } from './pages/ClientManagement';
 import { EventManagement } from './pages/EventManagement';
 import { MenuManagement } from './pages/MenuManagement';
 import { CostingManagement } from './pages/CostingManagement';
+import { CutleryManagement } from './pages/CutleryManagement';
 import { ProcurementPage } from './pages/ProcurementPage';
 import { SuperAdminPortal } from './pages/SuperAdminPortal';
 
@@ -40,7 +41,16 @@ export function App() {
   });
 
   const [allTenants, setAllTenants] = useState<Tenant[]>([]);
-  const [currentView, setCurrentView] = useState<string>('new-quotation');
+  const [currentView, setCurrentView] = useState<string>(() => {
+    const saved = localStorage.getItem('catering_user');
+    if (saved) {
+      try {
+        const u = JSON.parse(saved);
+        if (u.role === 'USER') return 'quotations';
+      } catch {}
+    }
+    return 'new-quotation';
+  });
   const [viewParams, setViewParams] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -51,11 +61,6 @@ export function App() {
       if (currentUser.role === 'SUPER_ADMIN') {
         const tList = await api.getTenants();
         setAllTenants(tList);
-        if (!activeTenant && tList.length > 0) {
-          setActiveTenant(tList[0]);
-          localStorage.setItem('active_tenant', JSON.stringify(tList[0]));
-          localStorage.setItem('active_tenant_id', String(tList[0].id));
-        }
       } else {
         const s = await api.getSettings();
         if (s && s.company_name) {
@@ -93,15 +98,13 @@ export function App() {
   }, [currentUser]);
 
   const handleNavigate = (view: string, params?: any) => {
+    const role = currentUser?.role || 'ADMIN';
+    if (role === 'USER' && (view === 'new-quotation' || view === 'costing')) {
+      setCurrentView('quotations');
+      return;
+    }
     setViewParams(params || null);
     setCurrentView(view);
-  };
-
-  const handleSwitchTenant = (tenant: Tenant) => {
-    setActiveTenant(tenant);
-    localStorage.setItem('active_tenant', JSON.stringify(tenant));
-    localStorage.setItem('active_tenant_id', String(tenant.id));
-    setCurrentView('menu');
   };
 
   const handleLogout = () => {
@@ -124,21 +127,33 @@ export function App() {
             setActiveTenant(tenant);
           }
           if (user.role === 'SUPER_ADMIN') {
-            handleNavigate('super-admin');
+            // Handled directly
+          } else if (user.role === 'USER') {
+            setCurrentView('quotations');
           } else {
-            handleNavigate('new-quotation');
+            setCurrentView('new-quotation');
           }
         }}
       />
     );
   }
 
+  // Super Admin does NOT use the daily catering ERP app
+  if (currentUser.role === 'SUPER_ADMIN') {
+    return (
+      <SuperAdminPortal onLogout={handleLogout} />
+    );
+  }
+
   const role = currentUser.role || 'ADMIN';
+  const effectiveView = (role === 'USER' && (currentView === 'new-quotation' || currentView === 'costing'))
+    ? 'quotations'
+    : currentView;
 
   return (
     <div className="app-container">
       <Sidebar
-        currentView={currentView}
+        currentView={effectiveView}
         onNavigate={(view) => handleNavigate(view)}
         userRole={role}
         activeTenant={activeTenant}
@@ -150,22 +165,16 @@ export function App() {
           currentUser={currentUser}
           activeTenant={activeTenant}
           allTenants={allTenants}
-          onSelectTenant={handleSwitchTenant}
-          onNavigate={handleNavigate}
           onLogout={handleLogout}
           toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         />
 
         <main style={{ flex: 1, overflowY: 'auto' }}>
-          {currentView === 'super-admin' && (
-            <SuperAdminPortal onSwitchTenant={handleSwitchTenant} />
-          )}
-
-          {currentView === 'procurement' && (
+          {effectiveView === 'procurement' && (
             <ProcurementPage />
           )}
 
-          {currentView === 'new-quotation' && (
+          {effectiveView === 'new-quotation' && (
             <NewQuotation
               userRole={role as any}
               editQuotationId={viewParams?.quotationId || null}
@@ -174,32 +183,40 @@ export function App() {
             />
           )}
 
-          {currentView === 'quotations' && (
+          {effectiveView === 'quotations' && (
             <QuotationsList
               userRole={role as any}
               onNavigate={handleNavigate}
             />
           )}
 
-          {currentView === 'events' && (
+          {effectiveView === 'events' && (
             <EventManagement
               userRole={role as any}
               onNavigate={handleNavigate}
             />
           )}
 
-          {currentView === 'clients' && (
+          {effectiveView === 'clients' && (
             <ClientManagement
               userRole={role as any}
               onNavigate={handleNavigate}
             />
           )}
 
-          {currentView === 'menu' && (
-            <MenuManagement userRole={role as any} />
+          {effectiveView === 'menu' && (
+            <MenuManagement userRole={role as any} defaultTab="dishes" />
           )}
 
-          {currentView === 'costing' && (
+          {effectiveView === 'ingredients' && (
+            <MenuManagement userRole={role as any} defaultTab="ingredients" />
+          )}
+
+          {effectiveView === 'cutlery' && (
+            <CutleryManagement userRole={role as any} />
+          )}
+
+          {effectiveView === 'costing' && (
             <CostingManagement userRole={role as any} />
           )}
         </main>

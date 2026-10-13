@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { MenuItem, Ingredient, Recipe, RecipeIngredient } from '../types';
 import { api } from '../services/api';
-import { X, Plus, Trash2, Save, Calculator, AlertCircle, ChefHat, Sparkles } from 'lucide-react';
+import { X, Plus, Trash2, Edit3, Save, Calculator, AlertCircle, ChefHat, Sparkles } from 'lucide-react';
 
 interface RecipeModalProps {
   item: MenuItem;
   onClose: () => void;
   onSaved: () => void;
+  readOnly?: boolean;
 }
 
-export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved }) => {
+export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved, readOnly = false }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
@@ -23,9 +24,27 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
   // Quick add master ingredient state
   const [showQuickAddIng, setShowQuickAddIng] = useState(false);
   const [newIngName, setNewIngName] = useState('');
-  const [newIngCategory, setNewIngCategory] = useState('Spices & Groceries');
+  const [newIngCategory, setNewIngCategory] = useState('Fresh Vegetables');
   const [newIngUnit, setNewIngUnit] = useState('kg');
   const [newIngPrice, setNewIngPrice] = useState<number>(100);
+  const [quickAddLoading, setQuickAddLoading] = useState(false);
+
+  // Status banners
+  const [recipeError, setRecipeError] = useState<string | null>(null);
+  const [recipeSuccess, setRecipeSuccess] = useState<string | null>(null);
+
+  // Edit Master Ingredient state
+  const [isEditIngOpen, setIsEditIngOpen] = useState(false);
+  const [editingIngId, setEditingIngId] = useState<number | null>(null);
+  const [editIngData, setEditIngData] = useState({
+    name: '',
+    category: 'Fresh Vegetables',
+    unit: 'kg',
+    purchase_price: 100,
+    wastage_pct: 5.0,
+    supplier: ''
+  });
+  const [editIngSaving, setEditIngSaving] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -114,6 +133,8 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
   const handleCreateQuickIngredient = async () => {
     if (!newIngName.trim()) return;
     try {
+      setQuickAddLoading(true);
+      setRecipeError(null);
       const created = await api.createIngredient({
         name: newIngName.trim(),
         category: newIngCategory,
@@ -133,33 +154,130 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
         wastage_pct: created.wastage_pct,
         line_cost: Math.round(created.purchase_price * 1.05 * 100) / 100
       };
-      setIngredients([...ingredients, newRow]);
+      setIngredients(prev => [...prev, newRow]);
       setNewIngName('');
       setShowQuickAddIng(false);
     } catch (err: any) {
-      alert(`Error creating ingredient: ${err.message}`);
+      setRecipeError(`Error creating ingredient: ${err.message}`);
+    } finally {
+      setQuickAddLoading(false);
+    }
+  };
+
+  const handleOpenEditIng = (ingId: number) => {
+    const ing = allIngredients.find(i => i.id === ingId);
+    if (!ing) return;
+    setEditingIngId(ing.id);
+    setEditIngData({
+      name: ing.name,
+      category: ing.category || 'Fresh Vegetables',
+      unit: ing.unit || 'kg',
+      purchase_price: ing.purchase_price,
+      wastage_pct: ing.wastage_pct ?? 5.0,
+      supplier: ing.supplier || ''
+    });
+    setIsEditIngOpen(true);
+  };
+
+  const handleSaveEditIng = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingIngId || !editIngData.name.trim()) return;
+    try {
+      setEditIngSaving(true);
+      const updated = await api.updateIngredient(editingIngId, {
+        name: editIngData.name.trim(),
+        category: editIngData.category,
+        unit: editIngData.unit.trim(),
+        purchase_price: Number(editIngData.purchase_price) || 0,
+        wastage_pct: Number(editIngData.wastage_pct) || 0,
+        supplier: editIngData.supplier.trim() || undefined
+      });
+      // Update local allIngredients
+      setAllIngredients(prev => prev.map(i => i.id === updated.id ? updated : i));
+
+      // Update in active recipe rows
+      setIngredients(prev => prev.map(row => {
+        if (row.ingredient_id === updated.id) {
+          const qty = row.quantity || 1;
+          const eff = updated.purchase_price * (1 + (updated.wastage_pct || 0) / 100);
+          return {
+            ...row,
+            ingredient_name: updated.name,
+            ingredient_category: updated.category,
+            unit: updated.unit,
+            purchase_price: updated.purchase_price,
+            wastage_pct: updated.wastage_pct,
+            line_cost: Math.round(qty * eff * 100) / 100
+          };
+        }
+        return row;
+      }));
+
+      setIsEditIngOpen(false);
+      setEditingIngId(null);
+    } catch (err: any) {
+      alert(`Failed to update ingredient: ${err.message}`);
+    } finally {
+      setEditIngSaving(false);
     }
   };
 
   const handleSaveRecipe = async () => {
     try {
       setSaving(true);
+      setRecipeError(null);
+      setRecipeSuccess(null);
+
+      // If user typed a new ingredient name in the box but didn't click "Save & Add", auto-save it!
+      let currentIngredients = [...ingredients];
+      if (newIngName.trim()) {
+        try {
+          const created = await api.createIngredient({
+            name: newIngName.trim(),
+            category: newIngCategory,
+            unit: newIngUnit,
+            purchase_price: Number(newIngPrice) || 0,
+            wastage_pct: 5.0
+          });
+          setAllIngredients(prev => [...prev, created]);
+          const newRow: RecipeIngredient = {
+            ingredient_id: created.id,
+            ingredient_name: created.name,
+            ingredient_category: created.category,
+            quantity: 1,
+            unit: created.unit,
+            purchase_price: created.purchase_price,
+            wastage_pct: created.wastage_pct,
+            line_cost: Math.round(created.purchase_price * 1.05 * 100) / 100
+          };
+          currentIngredients.push(newRow);
+          setIngredients(currentIngredients);
+          setNewIngName('');
+          setShowQuickAddIng(false);
+        } catch (e: any) {
+          console.warn('Auto quick-add ingredient error:', e);
+        }
+      }
+
       await api.saveRecipe({
         menu_item_id: item.id,
         portion_yield: portionYield > 0 ? portionYield : 100,
         prep_time_mins: prepTimeMins,
         instructions: instructions,
-        ingredients: ingredients.map(ing => ({
+        ingredients: currentIngredients.map(ing => ({
           ingredient_id: ing.ingredient_id,
           quantity: ing.quantity,
           unit: ing.unit,
           notes: ing.notes || ''
         }))
       });
-      onSaved();
-      onClose();
+      setRecipeSuccess('Recipe formula & dish food cost saved successfully!');
+      setTimeout(() => {
+        onSaved();
+        onClose();
+      }, 700);
     } catch (err: any) {
-      alert(`Failed to save recipe: ${err.message}`);
+      setRecipeError(`Failed to save recipe: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -222,10 +340,26 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
               <ChefHat size={22} />
             </div>
             <div>
-              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', color: '#FAF3E3', lineHeight: 1.2 }}>
-                Recipe & Raw Material Formula
-              </h2>
-              <div style={{ fontSize: '0.75rem', color: 'var(--brand-gold)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', color: '#FAF3E3', lineHeight: 1.2, margin: 0 }}>
+                  Recipe & Raw Material Formula
+                </h2>
+                {readOnly && (
+                  <span style={{
+                    backgroundColor: 'rgba(59, 130, 246, 0.25)',
+                    color: '#93C5FD',
+                    padding: '0.15rem 0.55rem',
+                    borderRadius: '4px',
+                    fontSize: '0.6875rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase'
+                  }}>
+                    Staff View Only
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--brand-gold)', marginTop: '0.2rem' }}>
                 {item.name} • {item.category_name || 'Standard Dish'}
               </div>
             </div>
@@ -265,10 +399,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
                   <input
                     type="number"
                     min="1"
+                    disabled={readOnly}
                     className="form-control"
                     value={portionYield}
                     onChange={(e) => setPortionYield(Number(e.target.value) || 1)}
-                    style={{ fontSize: '0.875rem', fontWeight: 700 }}
+                    style={{ fontSize: '0.875rem', fontWeight: 700, opacity: readOnly ? 0.85 : 1 }}
                   />
                   <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
                     e.g. 100 for 100 pax recipe formula
@@ -282,10 +417,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
                   <input
                     type="number"
                     min="0"
+                    disabled={readOnly}
                     className="form-control"
                     value={prepTimeMins}
                     onChange={(e) => setPrepTimeMins(Number(e.target.value) || 0)}
-                    style={{ fontSize: '0.875rem' }}
+                    style={{ fontSize: '0.875rem', opacity: readOnly ? 0.85 : 1 }}
                   />
                   <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
                     Time required by kitchen staff
@@ -309,26 +445,28 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
                     <span>Raw Materials & Ingredients List</span>
                     <span className="badge badge-neutral" style={{ fontSize: '0.6875rem' }}>{ingredients.length} items</span>
                   </h3>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuickAddIng(!showQuickAddIng)}
-                      className="btn btn-outline btn-sm"
-                      style={{ fontSize: '0.75rem', gap: '0.3rem' }}
-                    >
-                      <Plus size={13} />
-                      <span>New Ingredient</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleAddIngredientRow}
-                      className="btn btn-primary btn-sm"
-                      style={{ fontSize: '0.75rem', gap: '0.3rem' }}
-                    >
-                      <Plus size={13} />
-                      <span>Add To Recipe</span>
-                    </button>
-                  </div>
+                  {!readOnly && (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickAddIng(!showQuickAddIng)}
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: '0.75rem', gap: '0.3rem' }}
+                      >
+                        <Plus size={13} />
+                        <span>New Ingredient</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddIngredientRow}
+                        className="btn btn-primary btn-sm"
+                        style={{ fontSize: '0.75rem', gap: '0.3rem' }}
+                      >
+                        <Plus size={13} />
+                        <span>Add To Recipe</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Quick Add Master Ingredient Drawer */}
@@ -401,10 +539,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
                     <button
                       type="button"
                       onClick={handleCreateQuickIngredient}
+                      disabled={quickAddLoading || !newIngName.trim()}
                       className="btn btn-primary btn-sm"
                       style={{ fontSize: '0.75rem', height: '36px' }}
                     >
-                      Save & Add
+                      {quickAddLoading ? 'Adding...' : 'Save & Add'}
                     </button>
                   </div>
                 )}
@@ -429,11 +568,11 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
                     <table className="data-table" style={{ margin: 0 }}>
                       <thead>
                         <tr>
-                          <th style={{ width: '40%' }}>Raw Ingredient</th>
-                          <th style={{ width: '15%' }}>Qty for {portionYield} pax</th>
+                          <th style={{ width: readOnly ? '50%' : '40%' }}>Raw Ingredient</th>
+                          <th style={{ width: '18%' }}>Qty for {portionYield} pax</th>
                           <th style={{ width: '15%' }}>Unit</th>
-                          <th style={{ width: '15%', textAlign: 'right' }}>Est. Cost (₹)</th>
-                          <th style={{ width: '15%', textAlign: 'center' }}>Action</th>
+                          <th style={{ width: '17%', textAlign: 'right' }}>Est. Cost (₹)</th>
+                          {!readOnly && <th style={{ width: '10%', textAlign: 'center' }}>Action</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -442,9 +581,10 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
                             <td>
                               <select
                                 value={row.ingredient_id}
+                                disabled={readOnly}
                                 onChange={(e) => handleIngredientChange(idx, Number(e.target.value))}
                                 className="form-control"
-                                style={{ fontSize: '0.8125rem', fontWeight: 600 }}
+                                style={{ fontSize: '0.8125rem', fontWeight: 600, opacity: readOnly ? 0.9 : 1 }}
                               >
                                 {allIngredients.map(ing => (
                                   <option key={ing.id} value={ing.id}>
@@ -458,18 +598,20 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
                                 type="number"
                                 min="0.01"
                                 step="any"
+                                disabled={readOnly}
                                 value={row.quantity}
                                 onChange={(e) => handleQtyChange(idx, Number(e.target.value))}
                                 className="form-control"
-                                style={{ fontSize: '0.8125rem', fontWeight: 700 }}
+                                style={{ fontSize: '0.8125rem', fontWeight: 700, opacity: readOnly ? 0.9 : 1 }}
                               />
                             </td>
                             <td>
                               <select
                                 value={row.unit}
+                                disabled={readOnly}
                                 onChange={(e) => handleUnitChange(idx, e.target.value)}
                                 className="form-control"
-                                style={{ fontSize: '0.8125rem' }}
+                                style={{ fontSize: '0.8125rem', opacity: readOnly ? 0.9 : 1 }}
                               >
                                 <option value="kg">kg</option>
                                 <option value="g">g</option>
@@ -484,17 +626,30 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
                             <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--brand-emerald)' }}>
                               ₹{row.line_cost?.toFixed(2) || '0.00'}
                             </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveRow(idx)}
-                                className="btn btn-ghost btn-sm"
-                                style={{ color: '#DC2626', padding: '0.25rem' }}
-                                title="Remove ingredient"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </td>
+                            {!readOnly && (
+                              <td style={{ textAlign: 'center' }}>
+                                <div style={{ display: 'inline-flex', gap: '0.25rem', alignItems: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditIng(row.ingredient_id)}
+                                    className="btn btn-ghost btn-sm"
+                                    style={{ color: 'var(--brand-emerald)', padding: '0.25rem' }}
+                                    title="Edit master ingredient rate / wastage"
+                                  >
+                                    <Edit3 size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveRow(idx)}
+                                    className="btn btn-ghost btn-sm"
+                                    style={{ color: '#DC2626', padding: '0.25rem' }}
+                                    title="Remove ingredient from recipe"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -510,16 +665,55 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
                 </label>
                 <textarea
                   rows={3}
+                  disabled={readOnly}
                   className="form-control"
                   placeholder="Step-by-step instructions for banquet chefs, marination times, dum cooking guidelines..."
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
-                  style={{ fontSize: '0.8125rem', lineHeight: 1.5 }}
+                  style={{ fontSize: '0.8125rem', lineHeight: 1.5, opacity: readOnly ? 0.9 : 1 }}
                 />
               </div>
             </>
           )}
         </div>
+
+        {/* Status alerts */}
+        {recipeError && (
+          <div style={{
+            margin: '0 1.75rem 0.75rem',
+            padding: '0.75rem 1.25rem',
+            backgroundColor: '#FEF2F2',
+            border: '1.5px solid #F87171',
+            borderRadius: '10px',
+            color: '#991B1B',
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <AlertCircle size={16} />
+            <span>{recipeError}</span>
+          </div>
+        )}
+        {recipeSuccess && (
+          <div style={{
+            margin: '0 1.75rem 0.75rem',
+            padding: '0.75rem 1.25rem',
+            backgroundColor: '#ECFDF5',
+            border: '1.5px solid #34D399',
+            borderRadius: '10px',
+            color: '#065F46',
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <Sparkles size={16} />
+            <span>{recipeSuccess}</span>
+          </div>
+        )}
 
         {/* Footer Summary & Action */}
         <div style={{
@@ -558,26 +752,244 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({ item, onClose, onSaved
 
           {/* Buttons */}
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-outline"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveRecipe}
-              disabled={saving}
-              className="btn btn-primary"
-              style={{ gap: '0.45rem', minWidth: '140px' }}
-            >
-              <Save size={16} />
-              <span>{saving ? 'Saving...' : 'Save Recipe'}</span>
-            </button>
+            {readOnly ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn btn-primary"
+                style={{ minWidth: '100px' }}
+              >
+                Close
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="btn btn-outline"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveRecipe}
+                  disabled={saving}
+                  className="btn btn-primary"
+                  style={{ gap: '0.45rem', minWidth: '140px' }}
+                >
+                  <Save size={16} />
+                  <span>{saving ? 'Saving...' : 'Save Recipe'}</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Edit Master Ingredient Modal */}
+      {isEditIngOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => !editIngSaving && setIsEditIngOpen(false)}
+          style={{ zIndex: 11000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#FFFFFF',
+              maxWidth: '460px',
+              width: '92%',
+              padding: '2rem',
+              borderRadius: 'var(--radius-xl)',
+              boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.4)',
+              border: '1px solid #E2E8F0',
+              color: 'var(--text-main)',
+              maxHeight: '92vh',
+              overflowY: 'auto'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  backgroundColor: '#EAF2EC',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--brand-emerald)'
+                }}>
+                  <Edit3 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    Edit Ingredient Details
+                  </h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                    Changes apply across recipes and purchase lists.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditIngOpen(false)}
+                className="btn btn-ghost btn-sm"
+                style={{ borderRadius: '50%', padding: '0.35rem' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditIng}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                    Ingredient Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="form-control"
+                    value={editIngData.name}
+                    onChange={(e) => setEditIngData({ ...editIngData, name: e.target.value })}
+                    style={{ fontSize: '0.875rem' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                      Category
+                    </label>
+                    <select
+                      className="form-control"
+                      value={editIngData.category}
+                      onChange={(e) => setEditIngData({ ...editIngData, category: e.target.value })}
+                      style={{ fontSize: '0.8125rem' }}
+                    >
+                      <option value="Meat & Poultry">Meat & Poultry</option>
+                      <option value="Seafood">Seafood</option>
+                      <option value="Fresh Vegetables">Fresh Vegetables</option>
+                      <option value="Dairy & Oils">Dairy & Oils</option>
+                      <option value="Spices & Groceries">Spices & Groceries</option>
+                      <option value="Grains & Flours">Grains & Flours</option>
+                      <option value="Bakery & Sweets">Bakery & Sweets</option>
+                      <option value="Packaging & Disposables">Packaging & Disposables</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                      Unit
+                    </label>
+                    <select
+                      className="form-control"
+                      value={editIngData.unit}
+                      onChange={(e) => setEditIngData({ ...editIngData, unit: e.target.value })}
+                      style={{ fontSize: '0.8125rem' }}
+                    >
+                      <option value="kg">kg</option>
+                      <option value="g">g</option>
+                      <option value="litre">litre</option>
+                      <option value="ml">ml</option>
+                      <option value="piece">piece</option>
+                      <option value="packet">packet</option>
+                      <option value="can">can</option>
+                      <option value="box">box</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                      Purchase Rate (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      required
+                      className="form-control"
+                      value={editIngData.purchase_price}
+                      onChange={(e) => setEditIngData({ ...editIngData, purchase_price: parseFloat(e.target.value) || 0 })}
+                      style={{ fontSize: '0.875rem', fontWeight: 700 }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                      Wastage Loss (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      max="100"
+                      className="form-control"
+                      value={editIngData.wastage_pct}
+                      onChange={(e) => setEditIngData({ ...editIngData, wastage_pct: parseFloat(e.target.value) || 0 })}
+                      style={{ fontSize: '0.875rem' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Live Effective Cost Preview */}
+                <div style={{
+                  padding: '0.65rem 0.85rem',
+                  backgroundColor: '#F0FDF4',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid #BBF7D0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 600 }}>Effective Cost:</span>
+                  <span style={{ fontSize: '0.9rem', color: '#166534', fontWeight: 800 }}>
+                    ₹{(Number(editIngData.purchase_price || 0) * (1 + (Number(editIngData.wastage_pct) || 0) / 100)).toFixed(2)} / {editIngData.unit}
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                    Preferred Supplier / Brand (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. City Wholesale / Brand"
+                    value={editIngData.supplier}
+                    onChange={(e) => setEditIngData({ ...editIngData, supplier: e.target.value })}
+                    style={{ fontSize: '0.8125rem' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditIngOpen(false)}
+                    className="btn btn-outline"
+                    style={{ flex: 1 }}
+                    disabled={editIngSaving}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ flex: 1 }}
+                    disabled={editIngSaving}
+                  >
+                    {editIngSaving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
